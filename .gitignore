@@ -1,0 +1,65 @@
+# ==============================
+# Python
+# ==============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+.eggs/
+
+# Virtual environments
+backend/venv/
+venv/
+.env
+
+# ==============================
+# Node.js / Angular
+# ==============================
+frontend/node_modules/
+frontend/.angular/
+frontend/dist/
+
+# ==============================
+# Uploaded files (runtime data)
+# ==============================
+backend/uploads/videos/*
+backend/uploads/frames/*
+backend/uploads/masks/*
+backend/uploads/thumbnails/*
+!backend/uploads/videos/.gitkeep
+!backend/uploads/frames/.gitkeep
+!backend/uploads/masks/.gitkeep
+!backend/uploads/thumbnails/.gitkeep
+
+# ==============================
+# SAM2 model checkpoints
+# ==============================
+backend/sam2/checkpoints/*.pt
+backend/sam2/SAM_2.egg-info/
+
+# ==============================
+# IDE / Editor
+# ==============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ==============================
+# OS
+# ==============================
+Thumbs.db
+.DS_Store
+
+# ==============================
+# Logs
+# ==============================
+*.log
+npm-debug.log*

@@ -1,0 +1,252 @@
+@use '@angular/material' as mat;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Inter', sans-serif;
+  background: #0f1419;
+  color: #e1e8ed;
+}
+
+// Custom scrollbar
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1f2e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+// Snackbar styles
+.snack-success {
+  --mdc-snackbar-container-color: #10b981;
+  --mdc-snackbar-supporting-text-color: white;
+}
+
+.snack-error {
+  --mdc-snackbar-container-color: #ef4444;
+  --mdc-snackbar-supporting-text-color: white;
+}
+
+.snack-info {
+  --mdc-snackbar-container-color: #3b82f6;
+  --mdc-snackbar-supporting-text-color: white;
+}
+
+// Material theme overrides - DARK THEME
+.mat-mdc-dialog-container {
+  --mdc-dialog-container-color: #1e2432;
+}
+
+.mat-mdc-form-field {
+  width: 100%;
+}
+
+// Force light text in all form fields (dark theme)
+.mat-mdc-form-field {
+  --mdc-outlined-text-field-input-text-color: #e1e8ed;
+  --mdc-outlined-text-field-label-text-color: #94a3b8;
+  --mdc-outlined-text-field-hover-label-text-color: #cbd5e1;
+  --mdc-outlined-text-field-focus-label-text-color: #3b82f6;
+  --mdc-outlined-text-field-outline-color: rgba(255, 255, 255, 0.15);
+  --mdc-outlined-text-field-hover-outline-color: rgba(255, 255, 255, 0.3);
+  --mdc-outlined-text-field-focus-outline-color: #3b82f6;
+  --mdc-outlined-text-field-caret-color: #3b82f6;
+
+  --mdc-filled-text-field-input-text-color: #e1e8ed;
+  --mdc-filled-text-field-label-text-color: #94a3b8;
+  --mdc-filled-text-field-hover-label-text-color: #cbd5e1;
+  --mdc-filled-text-field-focus-label-text-color: #3b82f6;
+  --mdc-filled-text-field-caret-color: #3b82f6;
+  --mdc-filled-text-field-container-color: rgba(255, 255, 255, 0.05);
+  --mdc-filled-text-field-hover-container-color: rgba(255, 255, 255, 0.08);
+}
+
+// Text area & input text color
+.mat-mdc-input-element,
+.mat-mdc-form-field textarea,
+.mat-mdc-form-field input {
+  color: #e1e8ed !important;
+
+  &::placeholder {
+    color: #64748b !important;
+    opacity: 1 !important;
+  }
+}
+
+// Select dropdown dark theme
+.mat-mdc-select {
+  --mat-select-trigger-text-color: #e1e8ed;
+  --mat-select-enabled-trigger-text-color: #e1e8ed;
+  --mat-select-placeholder-text-color: #94a3b8;
+  --mat-select-enabled-arrow-color: #94a3b8;
+}
+
+.mat-mdc-select-panel {
+  background: #1e2432 !important;
+}
+
+.mat-mdc-option {
+  --mat-option-label-text-color: #e1e8ed;
+  --mat-option-hover-state-layer-color: rgba(255, 255, 255, 0.08);
+  --mat-option-focus-state-layer-color: rgba(255, 255, 255, 0.08);
+  --mat-option-selected-state-layer-color: rgba(59, 130, 246, 0.15);
+  color: #e1e8ed !important;
+}
+
+.mat-pseudo-checkbox {
+  --mat-full-pseudo-checkbox-unselected-icon-color: #94a3b8;
+  --mat-full-pseudo-checkbox-selected-icon-color: #3b82f6;
+  --mat-full-pseudo-checkbox-selected-checkmark-color: white;
+  --mat-minimal-pseudo-checkbox-selected-checkmark-color: #3b82f6;
+}
+
+// Force all Material icons to be light
+.mat-icon {
+  color: #e1e8ed;
+}
+
+// Fix icon-button icon colors
+.mat-mdc-icon-button .mat-icon {
+  color: #cbd5e1;
+}
+
+// Menu dark theme
+.mat-mdc-menu-panel {
+  --mat-menu-container-color: #1e2432;
+  --mat-menu-item-label-text-color: #e1e8ed;
+  --mat-menu-item-icon-color: #cbd5e1;
+  --mat-menu-item-hover-state-layer-color: rgba(255, 255, 255, 0.08);
+  background: #1e2432 !important;
+}
+
+.mat-mdc-menu-item {
+  color: #e1e8ed !important;
+}
+
+.mat-mdc-menu-item .mat-icon {
+  color: #cbd5e1 !important;
+}
+
+// Tab dark theme
+.mat-mdc-tab-group {
+  --mat-tab-header-inactive-label-text-color: #94a3b8;
+  --mat-tab-header-active-label-text-color: #3b82f6;
+  --mat-tab-header-inactive-hover-label-text-color: #cbd5e1;
+  --mat-tab-header-active-hover-label-text-color: #3b82f6;
+  --mat-tab-header-inactive-focus-label-text-color: #cbd5e1;
+  --mat-tab-header-active-focus-label-text-color: #3b82f6;
+  --mdc-tab-indicator-active-indicator-color: #3b82f6;
+  --mdc-secondary-navigation-tab-container-height: 48px;
+}
+
+.mat-mdc-tab .mdc-tab__text-label {
+  color: #94a3b8 !important;
+}
+
+.mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
+  color: #3b82f6 !important;
+}
+
+.mat-mdc-tab .mdc-tab__text-label .mat-icon {
+  color: inherit !important;
+}
+
+// Button text colors
+.mat-mdc-button, .mat-mdc-outlined-button {
+  --mdc-text-button-label-text-color: #e1e8ed;
+}
+
+.mat-mdc-raised-button {
+  --mdc-protected-button-label-text-color: #e1e8ed;
+}
+
+// Fix raised buttons with primary-btn / create-btn to keep icon white
+.primary-btn .mat-icon,
+.create-btn .mat-icon,
+.export-btn .mat-icon {
+  color: white !important;
+}
+
+// Spinner
+.mat-mdc-progress-spinner {
+  --mdc-circular-progress-active-indicator-color: #3b82f6;
+}
+
+// Progress bar
+.mat-mdc-progress-bar {
+  --mdc-linear-progress-active-indicator-color: #3b82f6;
+  --mdc-linear-progress-track-color: rgba(59, 130, 246, 0.15);
+}
+
+// Tooltip
+.mat-mdc-tooltip {
+  --mdc-plain-tooltip-container-color: #374151;
+  --mdc-plain-tooltip-supporting-text-color: #f1f5f9;
+}
+
+// Fix button icon alignment & overflow
+.mat-mdc-raised-button,
+.mat-mdc-button,
+.mat-mdc-outlined-button,
+.mat-mdc-unelevated-button {
+  .mat-icon {
+    margin-right: 4px;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+  }
+
+  .mdc-button__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+}
+
+// Ensure raised buttons don't overflow
+.mat-mdc-raised-button {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+// Global utilities
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.text-ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.gap-24 { gap: 24px; }
+
+.mt-8 { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.mb-24 { margin-bottom: 24px; }

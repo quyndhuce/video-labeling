@@ -1,0 +1,123 @@
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { VideoItem, VideoSegment, ObjectRegion, SegmentationResponse, Caption } from '../models';
+
+@Injectable({ providedIn: 'root' })
+export class VideoService {
+  private readonly API = '/api/videos';
+  private readonly SEGMENTS_API = '/api/segments';
+  private readonly ANNOTATIONS_API = '/api/annotations';
+
+  constructor(private http: HttpClient) {}
+
+  // ---- Videos ----
+  uploadVideo(projectId: string, file: File, subpartId?: string, duration?: number, thumbnail?: Blob): Observable<any> {
+    const formData = new FormData();
+    formData.append('video', file);
+    formData.append('project_id', projectId);
+    if (subpartId) formData.append('subpart_id', subpartId);
+    if (duration) formData.append('duration', duration.toString());
+    if (thumbnail) formData.append('thumbnail', thumbnail, 'thumb.jpg');
+    return this.http.post(`${this.API}/upload`, formData);
+  }
+
+  getProjectVideos(projectId: string): Observable<VideoItem[]> {
+    return this.http.get<VideoItem[]>(`${this.API}/project/${projectId}`);
+  }
+
+  getSubpartVideos(subpartId: string): Observable<VideoItem[]> {
+    return this.http.get<VideoItem[]>(`${this.API}/subpart/${subpartId}`);
+  }
+
+  getVideo(videoId: string): Observable<VideoItem> {
+    return this.http.get<VideoItem>(`${this.API}/${videoId}`);
+  }
+
+  updateVideo(videoId: string, data: Partial<VideoItem>): Observable<any> {
+    return this.http.put(`${this.API}/${videoId}`, data);
+  }
+
+  deleteVideo(videoId: string): Observable<any> {
+    return this.http.delete(`${this.API}/${videoId}`);
+  }
+
+  // ---- Segments ----
+  getVideoSegments(videoId: string): Observable<VideoSegment[]> {
+    return this.http.get<VideoSegment[]>(`${this.SEGMENTS_API}/video/${videoId}`);
+  }
+
+  createSegment(videoId: string, data: Partial<VideoSegment>): Observable<VideoSegment> {
+    return this.http.post<VideoSegment>(`${this.SEGMENTS_API}/video/${videoId}`, data);
+  }
+
+  createSegmentsBatch(videoId: string, segments: Partial<VideoSegment>[], replace = false): Observable<VideoSegment[]> {
+    return this.http.post<VideoSegment[]>(`${this.SEGMENTS_API}/video/${videoId}/batch`, { segments, replace });
+  }
+
+  updateSegment(segmentId: string, data: Partial<VideoSegment>): Observable<VideoSegment> {
+    return this.http.put<VideoSegment>(`${this.SEGMENTS_API}/${segmentId}`, data);
+  }
+
+  deleteSegment(segmentId: string): Observable<any> {
+    return this.http.delete(`${this.SEGMENTS_API}/${segmentId}`);
+  }
+
+  // ---- Regions (Segmentation) ----
+  getSegmentRegions(segmentId: string): Observable<ObjectRegion[]> {
+    return this.http.get<ObjectRegion[]>(`${this.SEGMENTS_API}/${segmentId}/regions`);
+  }
+
+  createRegion(segmentId: string, data: Partial<ObjectRegion>): Observable<ObjectRegion> {
+    return this.http.post<ObjectRegion>(`${this.SEGMENTS_API}/${segmentId}/regions`, data);
+  }
+
+  updateRegion(regionId: string, data: Partial<ObjectRegion>): Observable<any> {
+    return this.http.put(`${this.SEGMENTS_API}/regions/${regionId}`, data);
+  }
+
+  deleteRegion(regionId: string): Observable<any> {
+    return this.http.delete(`${this.SEGMENTS_API}/regions/${regionId}`);
+  }
+
+  segmentObject(brushMask: string, frameImage?: string): Observable<SegmentationResponse> {
+    return this.http.post<SegmentationResponse>(`${this.SEGMENTS_API}/segment-object`, {
+      brush_mask: brushMask,
+      frame_image: frameImage
+    });
+  }
+
+  // ---- Captions ----
+  getSegmentCaptions(segmentId: string): Observable<Caption[]> {
+    return this.http.get<Caption[]>(`${this.ANNOTATIONS_API}/segment/${segmentId}`);
+  }
+
+  getRegionCaption(regionId: string): Observable<Caption> {
+    return this.http.get<Caption>(`${this.ANNOTATIONS_API}/region/${regionId}`);
+  }
+
+  saveCaption(data: Partial<Caption> & { segment_id: string; video_id: string }): Observable<Caption> {
+    return this.http.post<Caption>(this.ANNOTATIONS_API, data);
+  }
+
+  updateCaption(captionId: string, data: Partial<Caption>): Observable<Caption> {
+    return this.http.put<Caption>(`${this.ANNOTATIONS_API}/${captionId}`, data);
+  }
+
+  deleteCaption(captionId: string): Observable<any> {
+    return this.http.delete(`${this.ANNOTATIONS_API}/${captionId}`);
+  }
+
+  exportAnnotations(videoId: string): Observable<any> {
+    return this.http.get(`${this.ANNOTATIONS_API}/export/video/${videoId}`);
+  }
+
+  // ---- Review ----
+  submitForReview(videoId: string): Observable<any> {
+    return this.http.post(`${this.API}/${videoId}/submit-review`, {});
+  }
+
+  reviewVideo(videoId: string, action: 'approve' | 'reject', comment?: string): Observable<any> {
+    return this.http.post(`${this.API}/${videoId}/review`, { action, comment });
+  }
+}
