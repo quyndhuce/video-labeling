@@ -1,4 +1,4 @@
-import { Component, Inject } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
@@ -8,6 +8,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { SettingsService, AppSettings } from '../../core/services/settings.service';
 
 @Component({
@@ -16,7 +18,8 @@ import { SettingsService, AppSettings } from '../../core/services/settings.servi
   imports: [
     CommonModule, FormsModule,
     MatDialogModule, MatFormFieldModule, MatInputModule,
-    MatSelectModule, MatButtonModule, MatIconModule, MatTabsModule
+    MatSelectModule, MatButtonModule, MatIconModule, MatTabsModule,
+    MatSnackBarModule, MatProgressSpinnerModule
   ],
   template: `
     <h2 mat-dialog-title>
@@ -24,6 +27,32 @@ import { SettingsService, AppSettings } from '../../core/services/settings.servi
     </h2>
     <mat-dialog-content>
       <mat-tab-group>
+        <!-- Server Tab -->
+        <mat-tab label="Server">
+          <div class="settings-section">
+            <p class="section-desc">Configure the DAM (Describe Anything Model) + SAM2 server for AI segmentation and auto-captioning.</p>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>DAM Server URL</mat-label>
+              <input matInput [(ngModel)]="damServerUrl"
+                     placeholder="http://192.168.88.31:8688">
+              <mat-icon matPrefix>dns</mat-icon>
+            </mat-form-field>
+
+            <div class="server-actions">
+              <button mat-stroked-button (click)="testConnection()" [disabled]="testingConnection">
+                <mat-icon *ngIf="!testingConnection">wifi_tethering</mat-icon>
+                <mat-spinner *ngIf="testingConnection" diameter="18"></mat-spinner>
+                {{ testingConnection ? 'Testing...' : 'Test Connection' }}
+              </button>
+              <span class="connection-status" *ngIf="connectionStatus" [class]="connectionStatus">
+                <mat-icon>{{ connectionStatus === 'ok' ? 'check_circle' : 'error' }}</mat-icon>
+                {{ connectionMessage }}
+              </span>
+            </div>
+          </div>
+        </mat-tab>
+
         <!-- Gemini API Tab -->
         <mat-tab label="Gemini API">
           <div class="settings-section">
@@ -95,6 +124,9 @@ import { SettingsService, AppSettings } from '../../core/services/settings.servi
     .settings-section {
       padding: 16px 4px;
     }
+    .section-desc {
+      color: #999; font-size: 13px; margin-bottom: 16px; line-height: 1.5;
+    }
     .full-width {
       width: 100%;
     }
@@ -105,20 +137,76 @@ import { SettingsService, AppSettings } from '../../core/services/settings.servi
       background: #333; color: #4fc3f7; padding: 2px 6px;
       border-radius: 3px; font-size: 12px;
     }
+    .server-actions {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    .server-actions button {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .server-actions mat-spinner { display: inline-block; }
+    .connection-status {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 13px; padding: 4px 10px;
+      border-radius: 4px;
+    }
+    .connection-status.ok {
+      color: #4caf50; background: rgba(76, 175, 80, 0.1);
+    }
+    .connection-status.error {
+      color: #f44336; background: rgba(244, 67, 54, 0.1);
+    }
+    .connection-status mat-icon { font-size: 18px; width: 18px; height: 18px; }
     mat-dialog-actions {
       padding: 12px 24px;
     }
   `]
 })
-export class SettingsDialogComponent {
+export class SettingsDialogComponent implements OnInit {
   form: AppSettings;
+  damServerUrl = '';
   showApiKey = false;
+  testingConnection = false;
+  connectionStatus: 'ok' | 'error' | '' = '';
+  connectionMessage = '';
 
   constructor(
     public dialogRef: MatDialogRef<SettingsDialogComponent>,
-    private settingsService: SettingsService
+    private settingsService: SettingsService,
+    private snackBar: MatSnackBar
   ) {
     this.form = { ...this.settingsService.get() };
+  }
+
+  ngOnInit(): void {
+    // Load DAM URL from backend
+    this.settingsService.getDamUrl().subscribe({
+      next: (res) => { this.damServerUrl = res.dam_server_url; },
+      error: () => { this.damServerUrl = this.form.dam_server_url || ''; }
+    });
+  }
+
+  testConnection(): void {
+    if (!this.damServerUrl.trim()) {
+      this.connectionStatus = 'error';
+      this.connectionMessage = 'Please enter a URL';
+      return;
+    }
+    this.testingConnection = true;
+    this.connectionStatus = '';
+    this.connectionMessage = '';
+
+    this.settingsService.testDamConnection(this.damServerUrl.trim()).subscribe({
+      next: (res) => {
+        this.testingConnection = false;
+        this.connectionStatus = 'ok';
+        this.connectionMessage = res.message || 'Connected!';
+      },
+      error: (err) => {
+        this.testingConnection = false;
+        this.connectionStatus = 'error';
+        this.connectionMessage = err.error?.message || 'Connection failed';
+      }
+    });
   }
 
   resetPrompts(): void {
@@ -128,7 +216,24 @@ export class SettingsDialogComponent {
   }
 
   save(): void {
+    // Save local settings (Gemini, prompts)
     this.settingsService.save(this.form);
-    this.dialogRef.close(true);
+
+    // Save DAM URL to backend DB
+    const url = this.damServerUrl.trim();
+    if (url) {
+      this.settingsService.saveDamUrl(url).subscribe({
+        next: () => {
+          this.snackBar.open('Settings saved', '', { duration: 2000, panelClass: 'snack-success' });
+          this.dialogRef.close(true);
+        },
+        error: () => {
+          this.snackBar.open('Gemini settings saved, but failed to save DAM URL', '', { duration: 3000, panelClass: 'snack-error' });
+          this.dialogRef.close(true);
+        }
+      });
+    } else {
+      this.dialogRef.close(true);
+    }
   }
 }

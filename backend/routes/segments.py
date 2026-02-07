@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from config import Config
 from utils.auth_middleware import token_required
+from routes.settings import get_dam_url
 
 segments_bp = Blueprint('segments', __name__)
 
@@ -396,7 +397,7 @@ def segment_object():
         return jsonify({'error': 'brush_mask is required'}), 400
 
     try:
-        dam_url = Config.DAM_SERVER_URL
+        dam_url = get_dam_url()
         response = http_requests.post(
             f"{dam_url}/segment",
             json={
@@ -415,7 +416,7 @@ def segment_object():
             return jsonify(result)
 
     except http_requests.exceptions.ConnectionError:
-        print(f"[SAM2] Cannot connect to DAM server at {Config.DAM_SERVER_URL}/segment, using fallback")
+        print(f"[SAM2] Cannot connect to DAM server at {get_dam_url()}/segment, using fallback")
         result = _fallback_segmentation(brush_mask_b64)
         return jsonify(result)
     except http_requests.exceptions.Timeout:

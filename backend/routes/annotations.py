@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from config import Config
 from utils.auth_middleware import token_required
+from routes.settings import get_dam_url
 import base64
 import io
 import requests as http_requests
@@ -243,7 +244,7 @@ def _call_dam_server(rgba_base64_list: list, prompt: str) -> str:
     For video mode, pass exactly 8 RGBA images (each frame with mask as alpha).
     For single image mode, pass a list with 1 item.
     """
-    dam_url = Config.DAM_SERVER_URL
+    dam_url = get_dam_url()
 
     # Build content: each image as separate image_url entry + text prompt
     content = []
@@ -395,7 +396,7 @@ def generate_caption():
 
     except http_requests.exceptions.ConnectionError:
         return jsonify({
-            'error': f'Cannot connect to DAM server at {Config.DAM_SERVER_URL}. Make sure the server is running.'
+            'error': f'Cannot connect to DAM server at {get_dam_url()}. Make sure the server is running.'
         }), 503
     except http_requests.exceptions.Timeout:
         return jsonify({

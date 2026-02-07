@@ -1,10 +1,13 @@
 import { Injectable, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
 
 export interface AppSettings {
   gemini_api_key: string;
   gemini_model: string;
   translate_prompt_en_to_vi: string;
   translate_prompt_vi_to_en: string;
+  dam_server_url: string;
 }
 
 const STORAGE_KEY = 'annotator_settings';
@@ -16,11 +19,15 @@ const DEFAULT_SETTINGS: AppSettings = {
     'Translate the following English text to Vietnamese. Keep technical terms as-is. Only return the translated text, nothing else.\n\nText: {{text}}',
   translate_prompt_vi_to_en:
     'Translate the following Vietnamese text to English. Keep technical terms as-is. Only return the translated text, nothing else.\n\nText: {{text}}',
+  dam_server_url: '',
 };
 
 @Injectable({ providedIn: 'root' })
 export class SettingsService {
+  private readonly SETTINGS_API = '/api/settings';
   settings = signal<AppSettings>(this.loadSettings());
+
+  constructor(private http: HttpClient) {}
 
   private loadSettings(): AppSettings {
     try {
@@ -45,5 +52,21 @@ export class SettingsService {
 
   getDefaults(): AppSettings {
     return { ...DEFAULT_SETTINGS };
+  }
+
+  // ---- DAM Server URL (synced with backend DB) ----
+
+  getDamUrl(): Observable<{ dam_server_url: string }> {
+    return this.http.get<{ dam_server_url: string }>(`${this.SETTINGS_API}/dam-url`);
+  }
+
+  saveDamUrl(url: string): Observable<any> {
+    return this.http.put(`${this.SETTINGS_API}/dam-url`, { dam_server_url: url });
+  }
+
+  testDamConnection(url: string): Observable<{ status: string; message: string; details?: any }> {
+    return this.http.post<{ status: string; message: string; details?: any }>(
+      `${this.SETTINGS_API}/dam-url/test`, { dam_server_url: url }
+    );
   }
 }
