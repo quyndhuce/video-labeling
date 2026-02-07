@@ -600,8 +600,11 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption, Category } from '../../
                     <select class="cat-mini-select" [ngModel]="selectedRegion!.category_id || ''"
                             (ngModelChange)="onCategoryChange($event || null)">
                       <option value="">No category</option>
-                      <option *ngFor="let cat of categories" [value]="cat.id">{{ cat.name }}</option>
+                      <option *ngFor="let cat of categories" [value]="cat.id">
+                        {{ cat.name }}
+                      </option>
                     </select>
+                    <span *ngIf="selectedRegion?.category_id" class="cat-mini-dot" [style.background]="(categories.find(c => c.id === selectedRegion.category_id)?.color) || '#64748b'"></span>
                     <button class="cat-manage-toggle" matTooltip="Manage Categories"
                             (click)="showCategoryManager = !showCategoryManager">
                       <mat-icon>{{ showCategoryManager ? 'close' : 'tune' }}</mat-icon>
