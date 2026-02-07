@@ -1,0 +1,16 @@
+__pycache__
+*.pyc
+venv/
+.env
+uploads/videos/*
+uploads/frames/*
+uploads/masks/*
+uploads/thumbnails/*
+sam2/.git
+sam2/notebooks
+sam2/demo
+sam2/training
+sam2/sav_dataset
+sam2/tools
+sam2/assets
+sam2/SAM_2.egg-info

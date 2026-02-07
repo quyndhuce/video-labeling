@@ -11,18 +11,32 @@ services:
     restart: unless-stopped
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: annotator-backend
     ports:
-      - "5000:5000"
+      - "6800:6800"
     environment:
       - MONGO_URI=mongodb://mongodb:27017/
       - DB_NAME=annotator_tool
       - SECRET_KEY=annotator-tool-secret-key-2024
+      - DAM_SERVER_URL=${DAM_SERVER_URL:-http://host.docker.internal:8688}
     depends_on:
       - mongodb
     volumes:
       - ./backend/uploads:/app/uploads
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: annotator-frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend
     restart: unless-stopped
 
 volumes:

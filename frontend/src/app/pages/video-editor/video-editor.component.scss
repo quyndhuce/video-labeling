@@ -731,6 +731,15 @@
   z-index: 2;
 }
 
+:host-context(.pan-active) .draw-canvas,
+.canvas-zoom-wrapper.pan-active .draw-canvas {
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
 .mask-canvas {
   position: absolute;
   top: 0;
@@ -888,7 +897,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 700px;
+  max-width: 800px;
 }
 
 .caption-level {
@@ -905,7 +914,7 @@
 
 .level-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   margin-bottom: 12px;
 
@@ -958,6 +967,134 @@
   margin-top: 8px;
   border-color: rgba(139, 92, 246, 0.3) !important;
   color: #8b5cf6 !important;
+}
+
+// Bilingual fields layout
+.bilingual-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .lang-field {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+
+    .lang-label {
+      min-width: 48px;
+      padding: 10px 0 0 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    mat-form-field {
+      flex: 1;
+    }
+
+    .translate-btn {
+      margin-top: 6px;
+      width: 28px;
+      height: 28px;
+      line-height: 28px;
+      flex-shrink: 0;
+      color: #64748b;
+      transition: color 0.2s;
+
+      mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+      }
+
+      &:hover:not([disabled]) {
+        color: #3b82f6;
+      }
+
+      &[disabled] {
+        opacity: 0.3;
+      }
+    }
+  }
+}
+
+// Combine actions row
+.combine-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+// DAM Generate Caption
+.generate-all-bar {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.generate-all-btn {
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6) !important;
+  color: white !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 24px !important;
+  font-size: 13px !important;
+
+  mat-icon {
+    color: white !important;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  mat-spinner {
+    display: inline-block;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+
+  ::ng-deep .mat-mdc-progress-spinner circle {
+    stroke: white !important;
+  }
+}
+
+.generate-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: #8b5cf6 !important;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.12);
+    color: #a78bfa !important;
+  }
+
+  &:disabled {
+    opacity: 0.3;
+  }
+
+  mat-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+
+  ::ng-deep .mat-mdc-progress-spinner circle {
+    stroke: #8b5cf6 !important;
+  }
 }
 
 .caption-actions {

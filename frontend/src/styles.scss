@@ -51,6 +51,20 @@ html, body {
 // Material theme overrides - DARK THEME
 .mat-mdc-dialog-container {
   --mdc-dialog-container-color: #1e2432;
+  --mdc-dialog-subhead-color: #e1e8ed;
+}
+
+// Dialog title & content text color
+.mat-mdc-dialog-title {
+  color: #e1e8ed !important;
+}
+
+.mat-mdc-dialog-content {
+  color: #cbd5e1 !important;
+}
+
+.mat-mdc-dialog-actions .mat-mdc-button {
+  color: #94a3b8 !important;
 }
 
 .mat-mdc-form-field {
@@ -67,6 +81,7 @@ html, body {
   --mdc-outlined-text-field-hover-outline-color: rgba(255, 255, 255, 0.3);
   --mdc-outlined-text-field-focus-outline-color: #3b82f6;
   --mdc-outlined-text-field-caret-color: #3b82f6;
+  --mdc-outlined-text-field-disabled-label-text-color: #64748b;
 
   --mdc-filled-text-field-input-text-color: #e1e8ed;
   --mdc-filled-text-field-label-text-color: #94a3b8;
@@ -75,6 +90,25 @@ html, body {
   --mdc-filled-text-field-caret-color: #3b82f6;
   --mdc-filled-text-field-container-color: rgba(255, 255, 255, 0.05);
   --mdc-filled-text-field-hover-container-color: rgba(255, 255, 255, 0.08);
+
+  // Fix floating label background for outlined variant (prevents overlap with placeholder)
+  .mat-mdc-text-field-wrapper.mdc-text-field--outlined .mdc-notched-outline--upgraded .mdc-floating-label--float-above {
+    background: #1e2432;
+    padding: 0 4px;
+  }
+}
+
+// Floating label text color
+.mdc-floating-label {
+  color: #94a3b8 !important;
+}
+
+.mdc-floating-label--float-above {
+  color: #94a3b8 !important;
+}
+
+.mdc-text-field--focused .mdc-floating-label {
+  color: #3b82f6 !important;
 }
 
 // Text area & input text color

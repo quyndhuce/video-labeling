@@ -16,6 +16,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/services/auth.service';
 import { ProjectService } from '../../core/services/project.service';
+import { VideoService } from '../../core/services/video.service';
+import { SettingsDialogComponent } from '../settings-dialog/settings-dialog.component';
 import { Project } from '../../core/models';
 
 @Component({
@@ -45,6 +47,10 @@ import { Project } from '../../core/models';
           <mat-icon>arrow_drop_down</mat-icon>
         </div>
         <mat-menu #userMenu="matMenu">
+          <button mat-menu-item (click)="openSettings()">
+            <mat-icon>settings</mat-icon>
+            <span>Settings</span>
+          </button>
           <button mat-menu-item (click)="logout()">
             <mat-icon>logout</mat-icon>
             <span>Logout</span>
@@ -82,6 +88,10 @@ import { Project } from '../../core/models';
               <mat-icon>more_vert</mat-icon>
             </button>
             <mat-menu #projectMenu="matMenu">
+              <button mat-menu-item (click)="exportProject(project)">
+                <mat-icon>download</mat-icon>
+                <span>Export Dataset</span>
+              </button>
               <button mat-menu-item (click)="deleteProject(project)">
                 <mat-icon color="warn">delete</mat-icon>
                 <span>Delete</span>
@@ -449,7 +459,9 @@ export class DashboardComponent implements OnInit {
   constructor(
     private authService: AuthService,
     private projectService: ProjectService,
+    private videoService: VideoService,
     private router: Router,
+    private dialog: MatDialog,
     private snackBar: MatSnackBar
   ) {}
 
@@ -506,9 +518,35 @@ export class DashboardComponent implements OnInit {
     }
   }
 
+  exportProject(project: Project): void {
+    this.snackBar.open('Exporting project... please wait', '', { duration: 5000 });
+    this.videoService.exportProjectAnnotations(project.id).subscribe({
+      next: (data) => {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `dataset_${project.name}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.snackBar.open('Project dataset exported!', '', { duration: 2000, panelClass: 'snack-success' });
+      },
+      error: () => {
+        this.snackBar.open('Failed to export project', '', { duration: 3000, panelClass: 'snack-error' });
+      }
+    });
+  }
+
   getProjectColor(project: Project): string {
     const index = this.projects.indexOf(project) % this.colors.length;
     return this.colors[index];
+  }
+
+  openSettings(): void {
+    this.dialog.open(SettingsDialogComponent, {
+      width: '600px',
+      panelClass: 'settings-dialog'
+    });
   }
 
   logout(): void {

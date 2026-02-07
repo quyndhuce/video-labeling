@@ -7,6 +7,4 @@ pymongo==4.6.1
 Pillow==10.2.0
 numpy==1.26.3
 Werkzeug==3.0.1
-torch>=2.1.0
-torchvision>=0.16.0
-sam2>=1.0
+requests==2.31.0

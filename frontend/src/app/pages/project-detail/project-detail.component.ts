@@ -16,9 +16,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatBadgeModule } from '@angular/material/badge';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { AuthService } from '../../core/services/auth.service';
 import { ProjectService } from '../../core/services/project.service';
 import { VideoService } from '../../core/services/video.service';
+import { SettingsDialogComponent } from '../settings-dialog/settings-dialog.component';
 import { Project, SubPart, VideoItem, User, Tag } from '../../core/models';
 
 @Component({
@@ -29,7 +31,7 @@ import { Project, SubPart, VideoItem, User, Tag } from '../../core/models';
     MatToolbarModule, MatButtonModule, MatIconModule, MatTabsModule,
     MatChipsModule, MatMenuModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatSnackBarModule, MatProgressSpinnerModule,
-    MatProgressBarModule, MatTooltipModule, MatBadgeModule
+    MatProgressBarModule, MatTooltipModule, MatBadgeModule, MatDialogModule
   ],
   template: `
     <!-- Navbar -->
@@ -57,6 +59,10 @@ import { Project, SubPart, VideoItem, User, Tag } from '../../core/models';
           <mat-icon>arrow_drop_down</mat-icon>
         </div>
         <mat-menu #userMenu="matMenu">
+          <button mat-menu-item (click)="openSettings()">
+            <mat-icon>settings</mat-icon>
+            <span>Settings</span>
+          </button>
           <button mat-menu-item (click)="logout()">
             <mat-icon>logout</mat-icon>
             <span>Logout</span>
@@ -1139,6 +1145,7 @@ export class ProjectDetailComponent implements OnInit {
     private authService: AuthService,
     private projectService: ProjectService,
     private videoService: VideoService,
+    private dialog: MatDialog,
     private snackBar: MatSnackBar
   ) {}
 
@@ -1653,6 +1660,13 @@ export class ProjectDetailComponent implements OnInit {
         this.showAnnotatorDialog = false;
         this.snackBar.open('Annotators updated!', 'Close', { duration: 2000, panelClass: 'snack-success' });
       }
+    });
+  }
+
+  openSettings(): void {
+    this.dialog.open(SettingsDialogComponent, {
+      width: '600px',
+      panelClass: 'settings-dialog'
     });
   }
 

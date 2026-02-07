@@ -112,6 +112,26 @@ export class VideoService {
     return this.http.get(`${this.ANNOTATIONS_API}/export/video/${videoId}`);
   }
 
+  exportProjectAnnotations(projectId: string): Observable<any> {
+    return this.http.get(`${this.ANNOTATIONS_API}/export/project/${projectId}`);
+  }
+
+  // ---- DAM Auto-Caption (Video: 8 frames) ----
+  generateCaption(frames: string[], maskImage: string, captionType: 'visual' | 'contextual'): Observable<{ caption: string; caption_type: string }> {
+    return this.http.post<{ caption: string; caption_type: string }>(`${this.ANNOTATIONS_API}/generate-caption`, {
+      frames,
+      mask_image: maskImage,
+      caption_type: captionType
+    });
+  }
+
+  generateCaptionBatch(frames: string[], maskImage: string): Observable<{ visual_caption: string; contextual_caption: string; warnings?: string[] }> {
+    return this.http.post<{ visual_caption: string; contextual_caption: string; warnings?: string[] }>(`${this.ANNOTATIONS_API}/generate-caption-batch`, {
+      frames,
+      mask_image: maskImage
+    });
+  }
+
   // ---- Review ----
   submitForReview(videoId: string): Observable<any> {
     return this.http.post(`${this.API}/${videoId}/submit-review`, {});

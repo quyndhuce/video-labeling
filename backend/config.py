@@ -13,3 +13,4 @@ class Config:
     MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB
     ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'webm'}
     JWT_EXPIRATION_HOURS = 24
+    DAM_SERVER_URL = os.environ.get('DAM_SERVER_URL', 'http://192.168.88.31:8688')

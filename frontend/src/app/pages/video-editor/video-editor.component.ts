@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ElementRef, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, AfterViewInit, OnDestroy, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -14,8 +14,12 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { VideoService } from '../../core/services/video.service';
 import { AuthService } from '../../core/services/auth.service';
+import { GeminiService } from '../../core/services/gemini.service';
+import { SettingsService } from '../../core/services/settings.service';
+import { SettingsDialogComponent } from '../settings-dialog/settings-dialog.component';
 import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/models';
 
 @Component({
@@ -25,7 +29,7 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/model
     CommonModule, FormsModule,
     MatButtonModule, MatIconModule, MatSliderModule, MatFormFieldModule,
     MatInputModule, MatSelectModule, MatSnackBarModule, MatProgressSpinnerModule,
-    MatTooltipModule, MatMenuModule, MatTabsModule, MatProgressBarModule
+    MatTooltipModule, MatMenuModule, MatTabsModule, MatProgressBarModule, MatDialogModule
   ],
   template: `
     <!-- Top Toolbar -->
@@ -51,9 +55,22 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/model
         </div>
       </div>
       <div class="toolbar-right">
-        <button mat-raised-button class="export-btn" (click)="exportAnnotations()" matTooltip="Export annotations">
+        <button mat-icon-button matTooltip="Settings" (click)="openSettings()">
+          <mat-icon>settings</mat-icon>
+        </button>
+        <button mat-raised-button class="export-btn" [matMenuTriggerFor]="exportMenu" matTooltip="Export annotations">
           <mat-icon>download</mat-icon> Export
         </button>
+        <mat-menu #exportMenu="matMenu">
+          <button mat-menu-item (click)="exportAnnotations()">
+            <mat-icon>movie</mat-icon>
+            <span>Export This Video</span>
+          </button>
+          <button mat-menu-item (click)="exportProject()">
+            <mat-icon>folder</mat-icon>
+            <span>Export Entire Project</span>
+          </button>
+        </mat-menu>
       </div>
     </div>
 
@@ -269,13 +286,17 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/model
                 {{ selectedSegment.name }} ({{ formatTime(selectedSegment.start_time) }} - {{ formatTime(selectedSegment.end_time) }})
               </span>
               <div class="brush-tools">
-                <button mat-icon-button [class.active]="brushMode === 'draw'"
-                  (click)="brushMode = 'draw'" matTooltip="Draw brush">
+                <button mat-icon-button [class.active]="brushMode === 'draw' && !panMode"
+                  (click)="brushMode = 'draw'; panMode = false" matTooltip="Draw brush (B)">
                   <mat-icon>brush</mat-icon>
                 </button>
-                <button mat-icon-button [class.active]="brushMode === 'erase'"
-                  (click)="brushMode = 'erase'" matTooltip="Eraser">
+                <button mat-icon-button [class.active]="brushMode === 'erase' && !panMode"
+                  (click)="brushMode = 'erase'; panMode = false" matTooltip="Eraser (E)">
                   <mat-icon>auto_fix_off</mat-icon>
+                </button>
+                <button mat-icon-button [class.active]="panMode"
+                  (click)="panMode = !panMode" matTooltip="Move / Pan (Space hold or H)">
+                  <mat-icon>pan_tool</mat-icon>
                 </button>
                 <div class="brush-size">
                   <mat-icon>circle</mat-icon>
@@ -305,7 +326,8 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/model
             </div>
 
             <div class="canvas-container" (wheel)="onCanvasWheel($event)">
-              <div class="canvas-zoom-wrapper" [style.transform]="'scale(' + zoomLevel + ') translate(' + panX + 'px,' + panY + 'px)'"
+              <div class="canvas-zoom-wrapper" [class.pan-active]="panMode || spaceHeld"
+                   [style.transform]="'scale(' + zoomLevel + ') translate(' + panX + 'px,' + panY + 'px)'"
                    (mousedown)="onCanvasMouseDown($event)"
                    (mousemove)="onCanvasMouseMove($event)"
                    (mouseup)="onCanvasMouseUp($event)"
@@ -412,6 +434,16 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/model
             </div>
 
             <div class="caption-levels" *ngIf="selectedRegion">
+              <!-- Generate All Button -->
+              <div class="generate-all-bar">
+                <button mat-raised-button class="generate-all-btn" (click)="generateAllCaptions()"
+                        [disabled]="generatingAll || !selectedRegion?.segmented_mask">
+                  <mat-icon *ngIf="!generatingAll">auto_awesome</mat-icon>
+                  <mat-spinner *ngIf="generatingAll" diameter="18"></mat-spinner>
+                  {{ generatingAll ? 'Generating...' : 'Auto Generate All Captions (DAM)' }}
+                </button>
+              </div>
+
               <div class="caption-level">
                 <div class="level-header">
                   <div class="level-badge visual">L1</div>
@@ -419,11 +451,37 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/model
                     <h4>Visual Caption</h4>
                     <p>Describe what the object looks like visually</p>
                   </div>
+                  <button mat-icon-button class="generate-btn" matTooltip="Auto generate with DAM"
+                          (click)="generateSingleCaption('visual')"
+                          [disabled]="generatingVisual || !selectedRegion?.segmented_mask">
+                    <mat-icon *ngIf="!generatingVisual">smart_toy</mat-icon>
+                    <mat-spinner *ngIf="generatingVisual" diameter="18"></mat-spinner>
+                  </button>
                 </div>
-                <mat-form-field appearance="outline">
-                  <textarea matInput [(ngModel)]="captionData.visual_caption" rows="3"
-                    placeholder="e.g., A red sedan car with tinted windows parked on the street"></textarea>
-                </mat-form-field>
+                <div class="bilingual-fields">
+                  <div class="lang-field">
+                    <span class="lang-label">🇬🇧 EN</span>
+                    <mat-form-field appearance="outline">
+                      <textarea matInput [(ngModel)]="captionData.visual_caption" rows="3"
+                        placeholder="e.g., A red sedan car with tinted windows parked on the street"></textarea>
+                    </mat-form-field>
+                    <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                            (click)="translateField('visual_caption', 'en_to_vi')" [disabled]="translating">
+                      <mat-icon>south</mat-icon>
+                    </button>
+                  </div>
+                  <div class="lang-field">
+                    <span class="lang-label">🇻🇳 VI</span>
+                    <mat-form-field appearance="outline">
+                      <textarea matInput [(ngModel)]="captionData.visual_caption_vi" rows="3"
+                        placeholder="VD: Một chiếc ô tô sedan màu đỏ với cửa kính tối đậu trên đường"></textarea>
+                    </mat-form-field>
+                    <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                            (click)="translateField('visual_caption', 'vi_to_en')" [disabled]="translating">
+                      <mat-icon>north</mat-icon>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div class="caption-level">
@@ -433,11 +491,37 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/model
                     <h4>Contextual Caption</h4>
                     <p>Describe what the object is and its context</p>
                   </div>
+                  <button mat-icon-button class="generate-btn" matTooltip="Auto generate with DAM"
+                          (click)="generateSingleCaption('contextual')"
+                          [disabled]="generatingContextual">
+                    <mat-icon *ngIf="!generatingContextual">smart_toy</mat-icon>
+                    <mat-spinner *ngIf="generatingContextual" diameter="18"></mat-spinner>
+                  </button>
                 </div>
-                <mat-form-field appearance="outline">
-                  <textarea matInput [(ngModel)]="captionData.contextual_caption" rows="3"
-                    placeholder="e.g., The car is waiting at a traffic light on a busy intersection"></textarea>
-                </mat-form-field>
+                <div class="bilingual-fields">
+                  <div class="lang-field">
+                    <span class="lang-label">🇬🇧 EN</span>
+                    <mat-form-field appearance="outline">
+                      <textarea matInput [(ngModel)]="captionData.contextual_caption" rows="3"
+                        placeholder="e.g., The car is waiting at a traffic light on a busy intersection"></textarea>
+                    </mat-form-field>
+                    <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                            (click)="translateField('contextual_caption', 'en_to_vi')" [disabled]="translating">
+                      <mat-icon>south</mat-icon>
+                    </button>
+                  </div>
+                  <div class="lang-field">
+                    <span class="lang-label">🇻🇳 VI</span>
+                    <mat-form-field appearance="outline">
+                      <textarea matInput [(ngModel)]="captionData.contextual_caption_vi" rows="3"
+                        placeholder="VD: Chiếc xe đang chờ đèn đỏ tại ngã tư đông đúc"></textarea>
+                    </mat-form-field>
+                    <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                            (click)="translateField('contextual_caption', 'vi_to_en')" [disabled]="translating">
+                      <mat-icon>north</mat-icon>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div class="caption-level">
@@ -448,10 +532,30 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/model
                     <p>Domain knowledge about the object</p>
                   </div>
                 </div>
-                <mat-form-field appearance="outline">
-                  <textarea matInput [(ngModel)]="captionData.knowledge_caption" rows="3"
-                    placeholder="e.g., This appears to be a Toyota Camry 2020 model, a popular mid-size sedan"></textarea>
-                </mat-form-field>
+                <div class="bilingual-fields">
+                  <div class="lang-field">
+                    <span class="lang-label">🇬🇧 EN</span>
+                    <mat-form-field appearance="outline">
+                      <textarea matInput [(ngModel)]="captionData.knowledge_caption" rows="3"
+                        placeholder="e.g., This appears to be a Toyota Camry 2020 model, a popular mid-size sedan"></textarea>
+                    </mat-form-field>
+                    <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                            (click)="translateField('knowledge_caption', 'en_to_vi')" [disabled]="translating">
+                      <mat-icon>south</mat-icon>
+                    </button>
+                  </div>
+                  <div class="lang-field">
+                    <span class="lang-label">🇻🇳 VI</span>
+                    <mat-form-field appearance="outline">
+                      <textarea matInput [(ngModel)]="captionData.knowledge_caption_vi" rows="3"
+                        placeholder="VD: Đây có vẻ là xe Toyota Camry đời 2020, dòng sedan cỡ trung phổ biến"></textarea>
+                    </mat-form-field>
+                    <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                            (click)="translateField('knowledge_caption', 'vi_to_en')" [disabled]="translating">
+                      <mat-icon>north</mat-icon>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div class="caption-level combined">
@@ -462,13 +566,41 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/model
                     <p>Final combined description from all levels</p>
                   </div>
                 </div>
-                <mat-form-field appearance="outline">
-                  <textarea matInput [(ngModel)]="captionData.combined_caption" rows="4"
-                    placeholder="Combined description incorporating all caption levels..."></textarea>
-                </mat-form-field>
-                <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineCaptions()">
-                  <mat-icon>auto_awesome</mat-icon> Auto Combine
-                </button>
+                <div class="bilingual-fields">
+                  <div class="lang-field">
+                    <span class="lang-label">🇬🇧 EN</span>
+                    <mat-form-field appearance="outline">
+                      <textarea matInput [(ngModel)]="captionData.combined_caption" rows="4"
+                        placeholder="Combined description incorporating all caption levels..."></textarea>
+                    </mat-form-field>
+                    <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                            (click)="translateField('combined_caption', 'en_to_vi')" [disabled]="translating">
+                      <mat-icon>south</mat-icon>
+                    </button>
+                  </div>
+                  <div class="lang-field">
+                    <span class="lang-label">🇻🇳 VI</span>
+                    <mat-form-field appearance="outline">
+                      <textarea matInput [(ngModel)]="captionData.combined_caption_vi" rows="4"
+                        placeholder="Mô tả tổng hợp kết hợp tất cả các cấp độ caption..."></textarea>
+                    </mat-form-field>
+                    <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                            (click)="translateField('combined_caption', 'vi_to_en')" [disabled]="translating">
+                      <mat-icon>north</mat-icon>
+                    </button>
+                  </div>
+                </div>
+                <div class="combine-actions">
+                  <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineCaptions()">
+                    <mat-icon>auto_awesome</mat-icon> Auto Combine
+                  </button>
+                  <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineAndTranslate()"
+                          [disabled]="translating">
+                    <mat-spinner *ngIf="translating" diameter="16"></mat-spinner>
+                    <mat-icon *ngIf="!translating">translate</mat-icon>
+                    {{ translating ? 'Translating...' : 'Combine & Translate' }}
+                  </button>
+                </div>
               </div>
 
               <div class="caption-actions">
@@ -586,19 +718,28 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   zoomLevel = 1;
   panX = 0;
   panY = 0;
+  panMode = false;
   private isPanning = false;
   private panStartX = 0;
   private panStartY = 0;
   private panOriginX = 0;
   private panOriginY = 0;
+  spaceHeld = false;
 
   // Captions
   captionData: Caption = {
     visual_caption: '',
     contextual_caption: '',
     knowledge_caption: '',
-    combined_caption: ''
+    combined_caption: '',
+    visual_caption_vi: '',
+    contextual_caption_vi: '',
+    knowledge_caption_vi: '',
+    combined_caption_vi: ''
   };
+  generatingVisual = false;
+  generatingContextual = false;
+  generatingAll = false;
 
   // Panel resize
   panelWidth = 300;
@@ -612,11 +753,16 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private segColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 
+  translating = false;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private videoService: VideoService,
     private authService: AuthService,
+    private geminiService: GeminiService,
+    private settingsService: SettingsService,
+    private dialog: MatDialog,
     private snackBar: MatSnackBar
   ) {}
 
@@ -938,7 +1084,7 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     video.currentTime = this.frameTime;
     video.onseeked = () => {
       const w = 800;
-      const h = (video.videoHeight / video.videoWidth) * w || 450;
+      const h = Math.round((video.videoHeight / video.videoWidth) * w) || 450;
 
       frameCanvas.width = drawCanvas.width = w;
       frameCanvas.height = drawCanvas.height = h;
@@ -982,9 +1128,35 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     this.panY = 0;
   }
 
+  @HostListener('window:keydown', ['$event'])
+  onKeyDown(event: KeyboardEvent): void {
+    // Ignore if user is typing in an input/textarea
+    const tag = (event.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    if (event.code === 'Space' && this.currentStep === 2) {
+      event.preventDefault();
+      this.spaceHeld = true;
+    } else if (event.key === 'b' || event.key === 'B') {
+      this.brushMode = 'draw'; this.panMode = false;
+    } else if (event.key === 'e' || event.key === 'E') {
+      this.brushMode = 'erase'; this.panMode = false;
+    } else if (event.key === 'h' || event.key === 'H') {
+      this.panMode = !this.panMode;
+    }
+  }
+
+  @HostListener('window:keyup', ['$event'])
+  onKeyUp(event: KeyboardEvent): void {
+    if (event.code === 'Space') {
+      this.spaceHeld = false;
+      this.isPanning = false;
+    }
+  }
+
   onCanvasMouseDown(event: MouseEvent): void {
-    // Middle-click or Space+click for panning, otherwise draw
-    if (event.button === 1 || (event.button === 0 && event.altKey)) {
+    // Middle-click, Alt+click, or panMode/Space for panning; otherwise draw
+    if (event.button === 1 || (event.button === 0 && (event.altKey || this.panMode || this.spaceHeld))) {
       event.preventDefault();
       this.isPanning = true;
       this.panStartX = event.clientX;
@@ -1038,6 +1210,27 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     ctx.fill();
 
+    // Eraser also erases on the mask canvas (segmented mask overlay)
+    if (this.brushMode === 'erase' && this.maskCanvasRef) {
+      const maskCanvas = this.maskCanvasRef.nativeElement;
+      const maskCtx = maskCanvas.getContext('2d')!;
+      const maskScaleX = maskCanvas.width / rect.width;
+      const maskScaleY = maskCanvas.height / rect.height;
+      const mx = (event.clientX - rect.left) * maskScaleX;
+      const my = (event.clientY - rect.top) * maskScaleY;
+
+      maskCtx.globalCompositeOperation = 'destination-out';
+      maskCtx.beginPath();
+      maskCtx.arc(mx, my, this.brushSize / 2, 0, Math.PI * 2);
+      maskCtx.fill();
+      maskCtx.globalCompositeOperation = 'source-over';
+
+      // Update lastSegmentedMask to reflect erased areas
+      if (this.lastSegmentedMask) {
+        this.lastSegmentedMask = maskCanvas.toDataURL('image/png');
+      }
+    }
+
     this.hasDrawing = true;
   }
 
@@ -1066,6 +1259,15 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!this.drawCanvasRef || !this.hasDrawing) return;
 
     this.segmenting = true;
+
+    // Clear old mask of the region being updated
+    this.lastSegmentedMask = '';
+    if (this.maskCanvasRef) {
+      const maskCanvas = this.maskCanvasRef.nativeElement;
+      const maskCtx = maskCanvas.getContext('2d')!;
+      maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+    }
+
     const brushMask = this.drawCanvasRef.nativeElement.toDataURL('image/png');
     const frameImage = this.frameCanvasRef?.nativeElement.toDataURL('image/png');
 
@@ -1073,7 +1275,15 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
       next: (result) => {
         this.segmenting = false;
         this.lastSegmentedMask = result.segmented_mask || '';
-        // Display segmented mask as colored overlay
+
+        // Clear brush strokes — only keep the segmented mask overlay
+        if (this.drawCanvasRef) {
+          const drawCanvas = this.drawCanvasRef.nativeElement;
+          const drawCtx = drawCanvas.getContext('2d')!;
+          drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+        }
+
+        // Display only the new segmented mask
         if (this.maskCanvasRef && result.segmented_mask) {
           this.drawMaskOverlay(result.segmented_mask, this.currentRegionColor);
         }
@@ -1253,33 +1463,30 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     const newSegmentedMask = this.lastSegmentedMask || this.brushToBinaryMask();
 
     if (this.selectedRegion) {
-      // --- UPDATE existing region: merge old mask + new mask ---
-      const oldMask = this.selectedRegion.segmented_mask;
-      this.mergeMasks(oldMask, newSegmentedMask).then(mergedMask => {
-        this.videoService.updateRegion(this.selectedRegion!.id, {
-          frame_time: this.frameTime,
-          brush_mask: brushMask,
-          segmented_mask: mergedMask,
-          label: this.currentRegionLabel,
-          color: this.currentRegionColor
-        }).subscribe({
-          next: () => {
-            const idx = this.regions.findIndex(r => r.id === this.selectedRegion!.id);
-            if (idx !== -1) {
-              this.regions[idx].frame_time = this.frameTime;
-              this.regions[idx].brush_mask = brushMask;
-              this.regions[idx].segmented_mask = mergedMask;
-              this.regions[idx].label = this.currentRegionLabel;
-              this.regions[idx].color = this.currentRegionColor;
-            }
-            this.lastSegmentedMask = '';
-            this.hasDrawing = false;
-            this.clearDrawCanvas();
-            // Redraw all overlays with updated region highlighted
-            this.drawAllRegionOverlays(this.selectedRegion!.id);
-            this.snackBar.open('Region updated!', '', { duration: 1500, panelClass: 'snack-success' });
+      // --- UPDATE existing region: replace with new mask (no merge) ---
+      this.videoService.updateRegion(this.selectedRegion!.id, {
+        frame_time: this.frameTime,
+        brush_mask: brushMask,
+        segmented_mask: newSegmentedMask,
+        label: this.currentRegionLabel,
+        color: this.currentRegionColor
+      }).subscribe({
+        next: () => {
+          const idx = this.regions.findIndex(r => r.id === this.selectedRegion!.id);
+          if (idx !== -1) {
+            this.regions[idx].frame_time = this.frameTime;
+            this.regions[idx].brush_mask = brushMask;
+            this.regions[idx].segmented_mask = newSegmentedMask;
+            this.regions[idx].label = this.currentRegionLabel;
+            this.regions[idx].color = this.currentRegionColor;
           }
-        });
+          this.lastSegmentedMask = newSegmentedMask;
+          this.hasDrawing = false;
+          this.clearDrawCanvas();
+          // Show only the updated region's mask
+          this.drawMaskOverlay(newSegmentedMask, this.currentRegionColor);
+          this.snackBar.open('Region updated!', '', { duration: 1500, panelClass: 'snack-success' });
+        }
       });
     } else {
       // --- CREATE new region ---
@@ -1296,11 +1503,12 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
           if (this.selectedSegment) {
             this.segmentRegionCounts[this.selectedSegment.id] = this.regions.length;
           }
-          this.clearCanvas();
-          this.lastSegmentedMask = '';
+          this.lastSegmentedMask = newSegmentedMask;
+          this.hasDrawing = false;
+          this.clearDrawCanvas();
           this.autoSetNextRegionColor();
-          // Redraw all overlays to show newly added region
-          this.drawAllRegionOverlays();
+          // Show only the newly created region's mask
+          this.drawMaskOverlay(newSegmentedMask, region.color);
           this.snackBar.open('Region saved!', '', { duration: 1500, panelClass: 'snack-success' });
         }
       });
@@ -1401,11 +1609,21 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     this.frameTime = region.frame_time;
     this.currentRegionLabel = region.label;
     this.currentRegionColor = region.color;
+    this.lastSegmentedMask = region.segmented_mask || '';
 
-    // Load the frame and show all overlays with selected one highlighted
+    // Load the frame and show only the selected region's mask
     setTimeout(() => {
       this.loadFrameForSegmentation(() => {
-        this.drawAllRegionOverlays(region.id);
+        if (region.segmented_mask) {
+          this.drawMaskOverlay(region.segmented_mask, region.color);
+        } else {
+          // Clear mask canvas if selected region has no mask
+          if (this.maskCanvasRef) {
+            const maskCanvas = this.maskCanvasRef.nativeElement;
+            const ctx = maskCanvas.getContext('2d')!;
+            ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+          }
+        }
       });
     }, 200);
   }
@@ -1431,6 +1649,14 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
       label: region.label,
       color: region.color
     }).subscribe();
+
+    // Update current color if this is the selected region & redraw mask overlay
+    if (this.selectedRegion?.id === region.id) {
+      this.currentRegionColor = region.color;
+      if (region.segmented_mask) {
+        this.drawMaskOverlay(region.segmented_mask, region.color);
+      }
+    }
   }
 
   prevFrame(): void {
@@ -1472,7 +1698,11 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
               visual_caption: '',
               contextual_caption: '',
               knowledge_caption: '',
-              combined_caption: ''
+              combined_caption: '',
+              visual_caption_vi: '',
+              contextual_caption_vi: '',
+              knowledge_caption_vi: '',
+              combined_caption_vi: ''
             };
           }
         }
@@ -1571,6 +1801,295 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.captionData.contextual_caption) parts.push(this.captionData.contextual_caption);
     if (this.captionData.knowledge_caption) parts.push(this.captionData.knowledge_caption);
     this.captionData.combined_caption = parts.join('. ');
+
+    const partsVi: string[] = [];
+    if (this.captionData.visual_caption_vi) partsVi.push(this.captionData.visual_caption_vi);
+    if (this.captionData.contextual_caption_vi) partsVi.push(this.captionData.contextual_caption_vi);
+    if (this.captionData.knowledge_caption_vi) partsVi.push(this.captionData.knowledge_caption_vi);
+    this.captionData.combined_caption_vi = partsVi.join('. ');
+  }
+
+  /** Auto combine + translate combined caption via Gemini */
+  async autoCombineAndTranslate(): Promise<void> {
+    this.autoCombineCaptions();
+
+    if (!this.geminiService.isConfigured()) {
+      this.snackBar.open('Gemini API key not set. Open Settings to configure.', 'Settings', {
+        duration: 5000
+      }).onAction().subscribe(() => this.openSettings());
+      return;
+    }
+
+    this.translating = true;
+    try {
+      // If EN combined exists but VI is empty/just-combined → translate EN→VI
+      if (this.captionData.combined_caption) {
+        const viResult = await this.geminiService.translateToVi(this.captionData.combined_caption);
+        this.captionData.combined_caption_vi = viResult;
+      }
+      // If VI combined exists but EN is empty → translate VI→EN
+      if (this.captionData.combined_caption_vi && !this.captionData.combined_caption) {
+        const enResult = await this.geminiService.translateToEn(this.captionData.combined_caption_vi);
+        this.captionData.combined_caption = enResult;
+      }
+      this.snackBar.open('Translation complete!', '', { duration: 2000, panelClass: 'snack-success' });
+    } catch (err: any) {
+      this.snackBar.open(err.message || 'Translation failed', '', { duration: 4000, panelClass: 'snack-error' });
+    } finally {
+      this.translating = false;
+    }
+  }
+
+  /** Translate a single caption field EN↔VI */
+  async translateField(fieldBase: string, direction: 'en_to_vi' | 'vi_to_en'): Promise<void> {
+    if (!this.geminiService.isConfigured()) {
+      this.snackBar.open('Gemini API key not set. Open Settings to configure.', 'Settings', {
+        duration: 5000
+      }).onAction().subscribe(() => this.openSettings());
+      return;
+    }
+
+    const sourceKey = direction === 'en_to_vi' ? fieldBase : fieldBase + '_vi';
+    const targetKey = direction === 'en_to_vi' ? fieldBase + '_vi' : fieldBase;
+    const sourceText = (this.captionData as any)[sourceKey];
+
+    if (!sourceText?.trim()) {
+      this.snackBar.open('Source text is empty', '', { duration: 2000 });
+      return;
+    }
+
+    this.translating = true;
+    try {
+      const result = await this.geminiService.translate(sourceText, direction);
+      (this.captionData as any)[targetKey] = result;
+      const arrow = direction === 'en_to_vi' ? 'EN → VI' : 'VI → EN';
+      this.snackBar.open(`Translated ${arrow}`, '', { duration: 2000, panelClass: 'snack-success' });
+    } catch (err: any) {
+      this.snackBar.open(err.message || 'Translation failed', '', { duration: 4000, panelClass: 'snack-error' });
+    } finally {
+      this.translating = false;
+    }
+  }
+
+  /** Open settings dialog */
+  openSettings(): void {
+    this.dialog.open(SettingsDialogComponent, {
+      width: '600px',
+      panelClass: 'settings-dialog'
+    });
+  }
+
+  // ---- DAM Auto Caption (Video: 8 frames from segment) ----
+
+  /**
+   * Rescale a base64 mask image to the given width × height.
+   * Returns a Promise with the resized mask as base64 PNG.
+   */
+  private rescaleMask(maskB64: string, targetW: number, targetH: number): Promise<string> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        if (img.width === targetW && img.height === targetH) {
+          resolve(maskB64); // already correct size
+          return;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d')!;
+        ctx.imageSmoothingEnabled = false; // nearest-neighbor for binary mask
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(maskB64); // fallback: return original
+      img.src = maskB64;
+    });
+  }
+
+  /**
+   * Capture 8 evenly-spaced frames from the current segment at native video resolution.
+   * Returns { frames: base64[], width, height } so callers can rescale the mask to match.
+   */
+  private captureSegmentFrames(): Promise<{ frames: string[]; width: number; height: number }> {
+    return new Promise((resolve, reject) => {
+      const video = this.segVideoPlayerRef?.nativeElement;
+      if (!video) {
+        reject('Video element not available');
+        return;
+      }
+      if (!this.selectedSegment) {
+        reject('No segment selected');
+        return;
+      }
+
+      const startTime = this.selectedSegment.start_time;
+      const endTime = this.selectedSegment.end_time;
+      const numFrames = 8;
+      const duration = endTime - startTime;
+
+      // Calculate 8 evenly-spaced timestamps within the segment
+      const timestamps: number[] = [];
+      if (duration <= 0) {
+        for (let i = 0; i < numFrames; i++) timestamps.push(startTime);
+      } else {
+        for (let i = 0; i < numFrames; i++) {
+          timestamps.push(startTime + (duration * i) / (numFrames - 1));
+        }
+      }
+
+      const frames: string[] = [];
+      let currentIdx = 0;
+
+      // Capture at native video resolution for best DAM quality
+      const captureW = video.videoWidth || 800;
+      const captureH = video.videoHeight || 450;
+
+      const captureFrame = () => {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = captureW;
+        tempCanvas.height = captureH;
+        const ctx = tempCanvas.getContext('2d')!;
+        ctx.drawImage(video, 0, 0, captureW, captureH);
+        frames.push(tempCanvas.toDataURL('image/jpeg', 0.85));
+      };
+
+      const seekAndCapture = () => {
+        if (currentIdx >= timestamps.length) {
+          // All frames captured — restore position without leaving onseeked active
+          video.onseeked = null;
+          if (this.selectedRegion) {
+            video.currentTime = this.selectedRegion.frame_time;
+          }
+          resolve({ frames, width: captureW, height: captureH });
+          return;
+        }
+
+        video.onseeked = () => {
+          video.onseeked = null; // clear immediately to avoid re-fires
+          captureFrame();
+          currentIdx++;
+          seekAndCapture();
+        };
+
+        video.currentTime = timestamps[currentIdx];
+      };
+
+      // Wait for video to be ready if it's currently seeking or loading
+      const startCapture = () => {
+        if (video.readyState >= 2 && !video.seeking) {
+          seekAndCapture();
+        } else {
+          // Wait for the video to become ready
+          const onReady = () => {
+            video.removeEventListener('seeked', onReady);
+            video.removeEventListener('canplay', onReady);
+            seekAndCapture();
+          };
+          video.addEventListener('seeked', onReady, { once: false });
+          video.addEventListener('canplay', onReady, { once: false });
+          // Timeout safety net: reject after 5s if video never becomes ready
+          setTimeout(() => {
+            video.removeEventListener('seeked', onReady);
+            video.removeEventListener('canplay', onReady);
+            if (frames.length === 0) {
+              reject('Timeout waiting for video to be ready');
+            }
+          }, 5000);
+        }
+      };
+
+      startCapture();
+    });
+  }
+
+  generateSingleCaption(type: 'visual' | 'contextual'): void {
+    if (!this.selectedRegion || !this.selectedSegment) return;
+
+    const maskB64 = this.selectedRegion.segmented_mask || '';
+    if (type === 'visual' && !maskB64) {
+      this.snackBar.open('No mask available for this region.', '', { duration: 3000 });
+      return;
+    }
+
+    if (type === 'visual') this.generatingVisual = true;
+    else this.generatingContextual = true;
+
+    this.snackBar.open('Capturing 8 frames from segment...', '', { duration: 2000 });
+
+    this.captureSegmentFrames().then(async ({ frames, width, height }) => {
+      // Rescale mask to match native video frame dimensions
+      const scaledMask = type === 'visual' ? await this.rescaleMask(maskB64, width, height) : maskB64;
+
+      this.videoService.generateCaption(frames, scaledMask, type).subscribe({
+        next: (res) => {
+          if (type === 'visual') {
+            this.captionData.visual_caption = res.caption;
+            this.generatingVisual = false;
+            this.snackBar.open('Visual caption generated!', '', { duration: 2000, panelClass: 'snack-success' });
+          } else {
+            this.captionData.contextual_caption = res.caption;
+            this.generatingContextual = false;
+            this.snackBar.open('Contextual caption generated!', '', { duration: 2000, panelClass: 'snack-success' });
+          }
+        },
+        error: (err) => {
+          if (type === 'visual') this.generatingVisual = false;
+          else this.generatingContextual = false;
+          this.snackBar.open(err.error?.error || `Failed to generate ${type} caption`, '', { duration: 4000, panelClass: 'snack-error' });
+        }
+      });
+    }).catch(() => {
+      if (type === 'visual') this.generatingVisual = false;
+      else this.generatingContextual = false;
+      this.snackBar.open('Cannot capture frames. Please wait for video to load.', '', { duration: 3000 });
+    });
+  }
+
+  generateAllCaptions(): void {
+    if (!this.selectedRegion || !this.selectedSegment) return;
+
+    const maskB64 = this.selectedRegion.segmented_mask || '';
+    if (!maskB64) {
+      this.snackBar.open('No mask available for this region.', '', { duration: 3000 });
+      return;
+    }
+
+    this.generatingAll = true;
+    this.generatingVisual = true;
+    this.generatingContextual = true;
+
+    this.snackBar.open('Capturing 8 frames from segment...', '', { duration: 2000 });
+
+    this.captureSegmentFrames().then(async ({ frames, width, height }) => {
+      // Rescale mask to match native video frame dimensions
+      const scaledMask = await this.rescaleMask(maskB64, width, height);
+
+      this.videoService.generateCaptionBatch(frames, scaledMask).subscribe({
+        next: (res) => {
+          if (res.visual_caption) this.captionData.visual_caption = res.visual_caption;
+          if (res.contextual_caption) this.captionData.contextual_caption = res.contextual_caption;
+          this.autoCombineCaptions();
+          this.generatingAll = false;
+          this.generatingVisual = false;
+          this.generatingContextual = false;
+          const msg = res.warnings?.length
+            ? `Captions generated with warnings: ${res.warnings.join('; ')}`
+            : 'All captions generated!';
+          this.snackBar.open(msg, '', { duration: 3000, panelClass: 'snack-success' });
+        },
+        error: (err) => {
+          this.generatingAll = false;
+          this.generatingVisual = false;
+          this.generatingContextual = false;
+          this.snackBar.open(err.error?.error || 'Failed to generate captions', '', { duration: 4000, panelClass: 'snack-error' });
+        }
+      });
+    }).catch(() => {
+      this.generatingAll = false;
+      this.generatingVisual = false;
+      this.generatingContextual = false;
+      this.snackBar.open('Cannot capture frames. Please wait for video to load.', '', { duration: 3000 });
+    });
   }
 
   saveCaption(): void {
@@ -1583,7 +2102,11 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
       visual_caption: this.captionData.visual_caption,
       contextual_caption: this.captionData.contextual_caption,
       knowledge_caption: this.captionData.knowledge_caption,
-      combined_caption: this.captionData.combined_caption
+      combined_caption: this.captionData.combined_caption,
+      visual_caption_vi: this.captionData.visual_caption_vi,
+      contextual_caption_vi: this.captionData.contextual_caption_vi,
+      knowledge_caption_vi: this.captionData.knowledge_caption_vi,
+      combined_caption_vi: this.captionData.combined_caption_vi
     };
 
     if (this.captionData.id) {
@@ -1616,7 +2139,34 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
         a.download = `annotations_${this.video!.original_name}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        this.snackBar.open('Annotations exported!', '', { duration: 2000, panelClass: 'snack-success' });
+        this.snackBar.open('Video annotations exported!', '', { duration: 2000, panelClass: 'snack-success' });
+      },
+      error: () => {
+        this.snackBar.open('Failed to export video annotations', '', { duration: 3000, panelClass: 'snack-error' });
+      }
+    });
+  }
+
+  exportProject(): void {
+    if (!this.video?.project_id) {
+      this.snackBar.open('No project associated with this video', '', { duration: 3000, panelClass: 'snack-error' });
+      return;
+    }
+    this.snackBar.open('Exporting project... please wait', '', { duration: 5000 });
+    this.videoService.exportProjectAnnotations(this.video.project_id).subscribe({
+      next: (data) => {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const projectName = data?.project?.name || 'project';
+        a.download = `dataset_${projectName}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.snackBar.open('Project dataset exported!', '', { duration: 2000, panelClass: 'snack-success' });
+      },
+      error: () => {
+        this.snackBar.open('Failed to export project', '', { duration: 3000, panelClass: 'snack-error' });
       }
     });
   }

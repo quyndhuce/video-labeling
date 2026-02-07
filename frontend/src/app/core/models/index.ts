@@ -121,6 +121,10 @@ export interface Caption {
   contextual_caption: string;
   knowledge_caption: string;
   combined_caption: string;
+  visual_caption_vi: string;
+  contextual_caption_vi: string;
+  knowledge_caption_vi: string;
+  combined_caption_vi: string;
   created_at?: string;
   updated_at?: string;
 }

@@ -3,6 +3,8 @@ import uuid
 import base64
 import io
 import time
+import requests as http_requests
+import traceback
 from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime, timezone
 from bson import ObjectId
@@ -239,7 +241,11 @@ def get_segment_regions(segment_id):
                 'visual_caption': caption.get('visual_caption', ''),
                 'contextual_caption': caption.get('contextual_caption', ''),
                 'knowledge_caption': caption.get('knowledge_caption', ''),
-                'combined_caption': caption.get('combined_caption', '')
+                'combined_caption': caption.get('combined_caption', ''),
+                'visual_caption_vi': caption.get('visual_caption_vi', ''),
+                'contextual_caption_vi': caption.get('contextual_caption_vi', ''),
+                'knowledge_caption_vi': caption.get('knowledge_caption_vi', ''),
+                'combined_caption_vi': caption.get('combined_caption_vi', '')
             } if caption else None,
             'created_at': r['created_at'].isoformat()
         })
@@ -339,60 +345,10 @@ def delete_region(region_id):
     return jsonify({'message': 'Region deleted successfully'})
 
 
-# ============ SAM2 SEGMENTATION API ============
-
-# Global SAM2 model instance (lazy loaded)
-_sam2_predictor = None
-
-
-def _get_sam2_predictor():
-    """Lazy-load SAM2 model. Returns the predictor or None if unavailable."""
-    global _sam2_predictor
-    if _sam2_predictor is not None:
-        return _sam2_predictor
-
-    try:
-        import torch
-        from sam2.build_sam import build_sam2
-        from sam2.sam2_image_predictor import SAM2ImagePredictor
-
-        # Try common checkpoint locations
-        checkpoint_paths = [
-            os.path.join(Config.BASE_DIR, 'models', 'sam2.1_hiera_small.pt'),
-            os.path.join(Config.BASE_DIR, 'models', 'sam2_hiera_small.pt'),
-            os.path.expanduser('~/.cache/sam2/sam2.1_hiera_small.pt'),
-        ]
-        config_name = 'sam2.1_hiera_s'
-
-        checkpoint = None
-        for p in checkpoint_paths:
-            if os.path.exists(p):
-                checkpoint = p
-                break
-
-        if not checkpoint:
-            print("[SAM2] No checkpoint found. Will use fallback segmentation.")
-            print(f"[SAM2] Place sam2.1_hiera_small.pt in: {checkpoint_paths[0]}")
-            return None
-
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        print(f"[SAM2] Loading model on {device} from {checkpoint}")
-        sam2_model = build_sam2(config_name, checkpoint, device=device)
-        _sam2_predictor = SAM2ImagePredictor(sam2_model)
-        print("[SAM2] Model loaded successfully!")
-        return _sam2_predictor
-
-    except ImportError as e:
-        print(f"[SAM2] sam2 package not installed: {e}")
-        print("[SAM2] Install with: pip install sam2")
-        return None
-    except Exception as e:
-        print(f"[SAM2] Failed to load model: {e}")
-        return None
-
+# ============ SAM2 SEGMENTATION API (proxied to DAM server) ============
 
 def _fallback_segmentation(brush_mask_b64):
-    """Fallback segmentation using PIL when SAM2 is not available."""
+    """Fallback segmentation using PIL when DAM/SAM2 server is not available."""
     from PIL import Image, ImageFilter
     import numpy as np
 
@@ -419,7 +375,7 @@ def _fallback_segmentation(brush_mask_b64):
     return {
         'segmented_mask': f'data:image/png;base64,{segmented_mask_b64}',
         'confidence': 0.85,
-        'message': 'Segmentation completed (fallback - SAM2 not available)'
+        'message': 'Segmentation completed (fallback - DAM/SAM2 server not available)'
     }
 
 
@@ -427,10 +383,10 @@ def _fallback_segmentation(brush_mask_b64):
 @token_required
 def segment_object():
     """
-    Object segmentation API using SAM2.
+    Object segmentation API - proxies to DAM server's /segment endpoint.
     Receives brush_mask (user-drawn region) + frame_image (video frame).
-    Uses SAM2 to produce a precise segmentation mask.
-    Falls back to PIL-based processing if SAM2 is not available.
+    DAM server uses SAM2 to produce a precise segmentation mask.
+    Falls back to PIL-based processing if DAM server is not available.
     """
     data = request.get_json()
     brush_mask_b64 = data.get('brush_mask', '')
@@ -440,94 +396,34 @@ def segment_object():
         return jsonify({'error': 'brush_mask is required'}), 400
 
     try:
-        from PIL import Image
-        import numpy as np
-
-        predictor = _get_sam2_predictor()
-
-        # If SAM2 not available or no frame image, use fallback
-        if predictor is None or not frame_image_b64:
-            result = _fallback_segmentation(brush_mask_b64)
-            return jsonify(result)
-
-        # Decode frame image
-        frame_data = base64.b64decode(
-            frame_image_b64.split(',')[-1] if ',' in frame_image_b64 else frame_image_b64
+        dam_url = Config.DAM_SERVER_URL
+        response = http_requests.post(
+            f"{dam_url}/segment",
+            json={
+                'brush_mask': brush_mask_b64,
+                'frame_image': frame_image_b64
+            },
+            timeout=120
         )
-        frame_image = Image.open(io.BytesIO(frame_data)).convert('RGB')
-        frame_np = np.array(frame_image)
 
-        # Decode brush mask to get prompt region
-        mask_data = base64.b64decode(
-            brush_mask_b64.split(',')[-1] if ',' in brush_mask_b64 else brush_mask_b64
-        )
-        brush_image = Image.open(io.BytesIO(mask_data)).convert('RGBA')
-        # Resize mask to match frame if needed
-        if brush_image.size != frame_image.size:
-            brush_image = brush_image.resize(frame_image.size, Image.NEAREST)
-        brush_np = np.array(brush_image)
-
-        # Extract painted region as mask (alpha channel or any non-zero pixel)
-        if brush_np.shape[2] == 4:
-            prompt_mask = brush_np[:, :, 3] > 0  # alpha channel
+        if response.status_code == 200:
+            return jsonify(response.json())
         else:
-            prompt_mask = np.any(brush_np[:, :, :3] > 0, axis=2)
-
-        # Find bounding box of the brush region for box prompt
-        ys, xs = np.where(prompt_mask)
-        if len(xs) == 0 or len(ys) == 0:
+            print(f"[SAM2] DAM server /segment error {response.status_code}: {response.text}")
+            # Fallback to local processing
             result = _fallback_segmentation(brush_mask_b64)
             return jsonify(result)
 
-        # Create box prompt with some padding
-        pad = 20
-        x1 = max(0, int(xs.min()) - pad)
-        y1 = max(0, int(ys.min()) - pad)
-        x2 = min(frame_np.shape[1], int(xs.max()) + pad)
-        y2 = min(frame_np.shape[0], int(ys.max()) + pad)
-        input_box = np.array([x1, y1, x2, y2])
-
-        # Also compute point prompts from brush center and spread
-        cx, cy = int(xs.mean()), int(ys.mean())
-        # Sample a few positive points from the brush area
-        n_points = min(5, len(xs))
-        indices = np.linspace(0, len(xs) - 1, n_points, dtype=int)
-        point_coords = np.array([[xs[i], ys[i]] for i in indices])
-        point_labels = np.ones(len(point_coords), dtype=int)  # all positive
-
-        # Run SAM2 prediction
-        predictor.set_image(frame_np)
-
-        masks, scores, _ = predictor.predict(
-            point_coords=point_coords,
-            point_labels=point_labels,
-            box=input_box,
-            multimask_output=True
-        )
-
-        # Pick the best mask (highest score)
-        best_idx = int(np.argmax(scores))
-        best_mask = masks[best_idx]
-        best_score = float(scores[best_idx])
-
-        # Convert mask to image (white = object, black = background)
-        mask_uint8 = (best_mask.astype(np.uint8)) * 255
-        result_image = Image.fromarray(mask_uint8, mode='L')
-
-        # Encode as base64 PNG
-        buffer = io.BytesIO()
-        result_image.save(buffer, format='PNG')
-        segmented_mask_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-
-        return jsonify({
-            'segmented_mask': f'data:image/png;base64,{segmented_mask_b64}',
-            'confidence': best_score,
-            'message': f'SAM2 segmentation completed (score: {best_score:.3f})'
-        })
-
+    except http_requests.exceptions.ConnectionError:
+        print(f"[SAM2] Cannot connect to DAM server at {Config.DAM_SERVER_URL}/segment, using fallback")
+        result = _fallback_segmentation(brush_mask_b64)
+        return jsonify(result)
+    except http_requests.exceptions.Timeout:
+        print("[SAM2] DAM server /segment timed out, using fallback")
+        result = _fallback_segmentation(brush_mask_b64)
+        return jsonify(result)
     except Exception as e:
-        print(f"[SAM2] Error during segmentation: {e}")
-        # Fallback to simple processing
+        traceback.print_exc()
         try:
             result = _fallback_segmentation(brush_mask_b64)
             return jsonify(result)
