@@ -7,6 +7,13 @@
   <img src="https://img.shields.io/badge/DAM-NVIDIA-76B900?logo=nvidia&logoColor=white" alt="NVIDIA DAM" />
 </p>
 
+<p align="center">
+  <strong>Developed at</strong><br/>
+  <a href="https://www.facebook.com/profile.php?id=61563435713112">
+    🏛️ AIRC — AI Research Center
+  </a>
+</p>
+
 # 🎬 Video Annotator Tool
 
 A full-stack, production-ready video annotation platform for creating high-quality, multi-modal video datasets. Built for research teams and data labeling workflows that require precise temporal segmentation, pixel-level object masking, and structured bilingual captioning (English & Vietnamese).
@@ -494,10 +501,10 @@ AnnotatorTool/
 
 ## License
 
-This project is developed for internal research and annotation purposes.
+This project is developed for internal research and annotation purposes at **AIRC** (AI Research Center).
 
 ---
 
 <p align="center">
-  Built with ❤️ for video AI research
+  Built with ❤️ at <a href="https://www.facebook.com/profile.php?id=61563435713112"><strong>AIRC</strong></a> — for video AI research
 </p>
