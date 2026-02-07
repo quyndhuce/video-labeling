@@ -130,9 +130,6 @@ cd AnnotatorTool
 
 # Start all services
 docker compose up -d
-
-# (Optional) Set custom DAM server URL
-DAM_SERVER_URL=http://your-gpu-server:8688 docker compose up -d
 ```
 
 The application will be available at:
@@ -386,7 +383,14 @@ Export is available from:
 | `POST` | `/api/tags` | Create a tag |
 | `DELETE` | `/api/tags/:id` | Delete a tag |
 
-> **Authentication:** All endpoints (except register and login) require a valid JWT token via the `Authorization: Bearer <token>` header.
+### Settings
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/settings/dam-url` | Get current DAM server URL |
+| `PUT` | `/api/settings/dam-url` | Update DAM server URL |
+| `POST` | `/api/settings/dam-url/test` | Test connection to DAM server |
+
+> **Authentication:** All endpoints (except register and login) require a valid JWT token via the `Authorization: Bearer <token>` header. Unauthorized (401) responses automatically redirect to the login page.
 
 ---
 
@@ -399,16 +403,25 @@ Export is available from:
 | `MONGO_URI` | `mongodb://localhost:27017/` | MongoDB connection string |
 | `DB_NAME` | `annotator_tool` | MongoDB database name |
 | `SECRET_KEY` | `annotator-tool-secret-key-2024` | JWT signing secret (change in production) |
-| `DAM_SERVER_URL` | `http://192.168.88.31:8688` | NVIDIA DAM / SAM2 server URL |
 
-### Frontend Settings (In-App)
+### In-App Settings (Settings Dialog ⚙️)
 
-Accessible via the **Settings** dialog (⚙️):
+Accessible from any page via the gear icon. Settings are organized into three tabs:
 
+**Server**
+| Setting | Description |
+|---------|-------------|
+| **DAM Server URL** | URL of the NVIDIA DAM + SAM2 server (e.g., `http://192.168.88.31:8688`). Stored in MongoDB. Includes a **Test Connection** button. |
+
+**Gemini API**
 | Setting | Description |
 |---------|-------------|
 | **Gemini API Key** | Google Gemini API key for AI translation |
 | **Gemini Model** | Model name (default: `gemini-2.0-flash`) |
+
+**Translation Prompts**
+| Setting | Description |
+|---------|-------------|
 | **EN → VI Prompt** | Customizable English-to-Vietnamese translation prompt |
 | **VI → EN Prompt** | Customizable Vietnamese-to-English translation prompt |
 
@@ -424,7 +437,7 @@ AnnotatorTool/
 ├── backend/                         # Flask REST API
 │   ├── app.py                       # Application factory & startup
 │   ├── config.py                    # Configuration management
-│   ├── Dockerfile                   # Backend container (Python 3.11 + SAM2)
+│   ├── Dockerfile                   # Lightweight backend container (Python 3.11)
 │   ├── requirements.txt             # Python dependencies
 │   ├── routes/
 │   │   ├── auth.py                  # Authentication (register, login, JWT)
@@ -432,7 +445,8 @@ AnnotatorTool/
 │   │   ├── videos.py                # Video upload, metadata, thumbnails
 │   │   ├── segments.py              # Temporal segments & AI segmentation proxy
 │   │   ├── annotations.py           # Captions, auto-caption, dataset export
-│   │   └── tags.py                  # Tag management
+│   │   ├── tags.py                  # Tag management
+│   │   └── settings.py              # DAM server URL config (stored in DB)
 │   ├── utils/
 │   │   └── auth_middleware.py       # JWT token verification decorator
 │   └── uploads/                     # File storage
@@ -459,21 +473,21 @@ AnnotatorTool/
             │   ├── guards/
             │   │   └── auth.guard.ts          # Route protection
             │   ├── interceptors/
-            │   │   └── auth.interceptor.ts    # JWT header injection
+            │   │   └── auth.interceptor.ts    # JWT header injection & 401 redirect
             │   ├── models/
             │   │   └── index.ts               # TypeScript interfaces
             │   └── services/
             │       ├── auth.service.ts        # Authentication & user state
             │       ├── gemini.service.ts      # Google Gemini API client
             │       ├── project.service.ts     # Project CRUD operations
-            │       ├── settings.service.ts    # App settings (localStorage)
+            │       ├── settings.service.ts    # App settings (local + backend sync)
             │       └── video.service.ts       # Video, segment, annotation APIs
             └── pages/
                 ├── dashboard/                 # Project listing & management
                 ├── login/                     # User login
                 ├── register/                  # User registration
                 ├── project-detail/            # Videos, sub-parts, assignments
-                ├── settings-dialog/           # Gemini & translation config
+                ├── settings-dialog/           # Server, Gemini & translation config
                 └── video-editor/              # Three-step annotation editor
 ```
 

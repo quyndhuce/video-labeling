@@ -21,7 +21,6 @@ services:
       - MONGO_URI=mongodb://mongodb:27017/
       - DB_NAME=annotator_tool
       - SECRET_KEY=annotator-tool-secret-key-2024
-      - DAM_SERVER_URL=${DAM_SERVER_URL:-http://host.docker.internal:8688}
     depends_on:
       - mongodb
     volumes:
