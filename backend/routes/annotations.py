@@ -52,6 +52,37 @@ def get_segment_captions(segment_id):
     return jsonify(result)
 
 
+@annotations_bp.route('/segment-caption/<segment_id>', methods=['GET'])
+@token_required
+def get_segment_caption(segment_id):
+    """Get segment-level caption (region_id is None)"""
+    try:
+        caption = current_app.db.captions.find_one({
+            'segment_id': ObjectId(segment_id),
+            'region_id': None
+        })
+    except Exception:
+        return jsonify({'error': 'Invalid segment ID'}), 400
+
+    if not caption:
+        return jsonify(None)
+
+    return jsonify({
+        'id': str(caption['_id']),
+        'segment_id': str(caption['segment_id']),
+        'video_id': str(caption['video_id']),
+        'region_id': None,
+        'contextual_caption': caption.get('contextual_caption', ''),
+        'knowledge_caption': caption.get('knowledge_caption', ''),
+        'combined_caption': caption.get('combined_caption', ''),
+        'contextual_caption_vi': caption.get('contextual_caption_vi', ''),
+        'knowledge_caption_vi': caption.get('knowledge_caption_vi', ''),
+        'combined_caption_vi': caption.get('combined_caption_vi', ''),
+        'created_at': caption['created_at'].isoformat(),
+        'updated_at': caption.get('updated_at', caption['created_at']).isoformat()
+    })
+
+
 @annotations_bp.route('/region/<region_id>', methods=['GET'])
 @token_required
 def get_region_caption(region_id):
@@ -90,45 +121,52 @@ def create_caption():
     if not data.get('segment_id') or not data.get('video_id'):
         return jsonify({'error': 'segment_id and video_id are required'}), 400
 
-    # Check if caption already exists for this region
+    # Check if caption already exists
     if data.get('region_id'):
         existing = current_app.db.captions.find_one({
             'region_id': ObjectId(data['region_id']),
             'segment_id': ObjectId(data['segment_id'])
         })
-        if existing:
-            # Update instead
-            current_app.db.captions.update_one(
-                {'_id': existing['_id']},
-                {'$set': {
-                    'visual_caption': data.get('visual_caption', existing.get('visual_caption', '')),
-                    'contextual_caption': data.get('contextual_caption', existing.get('contextual_caption', '')),
-                    'knowledge_caption': data.get('knowledge_caption', existing.get('knowledge_caption', '')),
-                    'combined_caption': data.get('combined_caption', existing.get('combined_caption', '')),
-                    'visual_caption_vi': data.get('visual_caption_vi', existing.get('visual_caption_vi', '')),
-                    'contextual_caption_vi': data.get('contextual_caption_vi', existing.get('contextual_caption_vi', '')),
-                    'knowledge_caption_vi': data.get('knowledge_caption_vi', existing.get('knowledge_caption_vi', '')),
-                    'combined_caption_vi': data.get('combined_caption_vi', existing.get('combined_caption_vi', '')),
-                    'updated_at': datetime.now(timezone.utc)
-                }}
-            )
-            updated = current_app.db.captions.find_one({'_id': existing['_id']})
-            return jsonify({
-                'id': str(updated['_id']),
-                'segment_id': str(updated['segment_id']),
-                'video_id': str(updated['video_id']),
-                'region_id': str(updated['region_id']) if updated.get('region_id') else None,
-                'visual_caption': updated.get('visual_caption', ''),
-                'contextual_caption': updated.get('contextual_caption', ''),
-                'knowledge_caption': updated.get('knowledge_caption', ''),
-                'combined_caption': updated.get('combined_caption', ''),
-                'visual_caption_vi': updated.get('visual_caption_vi', ''),
-                'contextual_caption_vi': updated.get('contextual_caption_vi', ''),
-                'knowledge_caption_vi': updated.get('knowledge_caption_vi', ''),
-                'combined_caption_vi': updated.get('combined_caption_vi', ''),
-                'created_at': updated['created_at'].isoformat(),
-                'updated_at': updated.get('updated_at', updated['created_at']).isoformat()
-            })
+    else:
+        # Segment-level caption (region_id is None)
+        existing = current_app.db.captions.find_one({
+            'segment_id': ObjectId(data['segment_id']),
+            'region_id': None
+        })
+
+    if existing:
+        # Update instead
+        current_app.db.captions.update_one(
+            {'_id': existing['_id']},
+            {'$set': {
+                'visual_caption': data.get('visual_caption', existing.get('visual_caption', '')),
+                'contextual_caption': data.get('contextual_caption', existing.get('contextual_caption', '')),
+                'knowledge_caption': data.get('knowledge_caption', existing.get('knowledge_caption', '')),
+                'combined_caption': data.get('combined_caption', existing.get('combined_caption', '')),
+                'visual_caption_vi': data.get('visual_caption_vi', existing.get('visual_caption_vi', '')),
+                'contextual_caption_vi': data.get('contextual_caption_vi', existing.get('contextual_caption_vi', '')),
+                'knowledge_caption_vi': data.get('knowledge_caption_vi', existing.get('knowledge_caption_vi', '')),
+                'combined_caption_vi': data.get('combined_caption_vi', existing.get('combined_caption_vi', '')),
+                'updated_at': datetime.now(timezone.utc)
+            }}
+        )
+        updated = current_app.db.captions.find_one({'_id': existing['_id']})
+        return jsonify({
+            'id': str(updated['_id']),
+            'segment_id': str(updated['segment_id']),
+            'video_id': str(updated['video_id']),
+            'region_id': str(updated['region_id']) if updated.get('region_id') else None,
+            'visual_caption': updated.get('visual_caption', ''),
+            'contextual_caption': updated.get('contextual_caption', ''),
+            'knowledge_caption': updated.get('knowledge_caption', ''),
+            'combined_caption': updated.get('combined_caption', ''),
+            'visual_caption_vi': updated.get('visual_caption_vi', ''),
+            'contextual_caption_vi': updated.get('contextual_caption_vi', ''),
+            'knowledge_caption_vi': updated.get('knowledge_caption_vi', ''),
+            'combined_caption_vi': updated.get('combined_caption_vi', ''),
+            'created_at': updated['created_at'].isoformat(),
+            'updated_at': updated.get('updated_at', updated['created_at']).isoformat()
+        })
 
     caption = {
         'segment_id': ObjectId(data['segment_id']),
@@ -519,7 +557,9 @@ def export_project_annotations(project_id):
         total_segments += len(v['segments'])
         for seg in v['segments']:
             total_regions += len(seg['regions'])
-            total_captions += sum(1 for r in seg['regions'] if r.get('captions', {}).get('en', {}).get('combined'))
+            total_captions += sum(1 for r in seg['regions'] if r.get('captions', {}).get('en', {}).get('visual'))
+            if seg.get('segment_captions'):
+                total_captions += len(seg['segment_captions'])
 
     # Subparts
     subparts = list(current_app.db.subparts.find({'project_id': ObjectId(project_id)}).sort('order', 1))
@@ -580,18 +620,17 @@ def _build_video_export(video):
                 'id': str(r['_id']),
                 'label': r.get('label', ''),
                 'color': r.get('color', ''),
+                'category': r.get('category_name', ''),
                 'frame_time': r['frame_time'],
                 'segmented_mask': r.get('segmented_mask', ''),
                 'captions': {
                     'en': {
                         'visual': caption.get('visual_caption', '') if caption else '',
-                        'contextual': caption.get('contextual_caption', '') if caption else '',
                         'knowledge': caption.get('knowledge_caption', '') if caption else '',
                         'combined': caption.get('combined_caption', '') if caption else ''
                     },
                     'vi': {
                         'visual': caption.get('visual_caption_vi', '') if caption else '',
-                        'contextual': caption.get('contextual_caption_vi', '') if caption else '',
                         'knowledge': caption.get('knowledge_caption_vi', '') if caption else '',
                         'combined': caption.get('combined_caption_vi', '') if caption else ''
                     }
@@ -606,13 +645,11 @@ def _build_video_export(video):
         }))
         seg_captions_data = [{
             'en': {
-                'visual': c.get('visual_caption', ''),
                 'contextual': c.get('contextual_caption', ''),
                 'knowledge': c.get('knowledge_caption', ''),
                 'combined': c.get('combined_caption', '')
             },
             'vi': {
-                'visual': c.get('visual_caption_vi', ''),
                 'contextual': c.get('contextual_caption_vi', ''),
                 'knowledge': c.get('knowledge_caption_vi', ''),
                 'combined': c.get('combined_caption_vi', '')

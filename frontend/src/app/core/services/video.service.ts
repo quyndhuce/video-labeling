@@ -1,13 +1,14 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { VideoItem, VideoSegment, ObjectRegion, SegmentationResponse, Caption } from '../models';
+import { VideoItem, VideoSegment, ObjectRegion, SegmentationResponse, Caption, Category } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class VideoService {
   private readonly API = '/api/videos';
   private readonly SEGMENTS_API = '/api/segments';
   private readonly ANNOTATIONS_API = '/api/annotations';
+  private readonly CATEGORIES_API = '/api/categories';
 
   constructor(private http: HttpClient) {}
 
@@ -87,6 +88,23 @@ export class VideoService {
     });
   }
 
+  // ---- Categories ----
+  getProjectCategories(projectId: string): Observable<Category[]> {
+    return this.http.get<Category[]>(`${this.CATEGORIES_API}/project/${projectId}`);
+  }
+
+  createCategory(projectId: string, data: Partial<Category>): Observable<Category> {
+    return this.http.post<Category>(`${this.CATEGORIES_API}/project/${projectId}`, data);
+  }
+
+  updateCategory(categoryId: string, data: Partial<Category>): Observable<Category> {
+    return this.http.put<Category>(`${this.CATEGORIES_API}/${categoryId}`, data);
+  }
+
+  deleteCategory(categoryId: string): Observable<any> {
+    return this.http.delete(`${this.CATEGORIES_API}/${categoryId}`);
+  }
+
   // ---- Captions ----
   getSegmentCaptions(segmentId: string): Observable<Caption[]> {
     return this.http.get<Caption[]>(`${this.ANNOTATIONS_API}/segment/${segmentId}`);
@@ -94,6 +112,10 @@ export class VideoService {
 
   getRegionCaption(regionId: string): Observable<Caption> {
     return this.http.get<Caption>(`${this.ANNOTATIONS_API}/region/${regionId}`);
+  }
+
+  getSegmentCaption(segmentId: string): Observable<Caption> {
+    return this.http.get<Caption>(`${this.ANNOTATIONS_API}/segment-caption/${segmentId}`);
   }
 
   saveCaption(data: Partial<Caption> & { segment_id: string; video_id: string }): Observable<Caption> {

@@ -20,7 +20,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { GeminiService } from '../../core/services/gemini.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { SettingsDialogComponent } from '../settings-dialog/settings-dialog.component';
-import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/models';
+import { VideoItem, VideoSegment, ObjectRegion, Caption, Category } from '../../core/models';
 
 @Component({
   selector: 'app-video-editor',
@@ -419,195 +419,374 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/model
         <div class="editor-layout">
           <!-- Caption Editor -->
           <div class="caption-section">
-            <div class="caption-header">
-              <h3 *ngIf="selectedRegion">
-                Captioning: <span [style.color]="selectedRegion.color">{{ selectedRegion.label }}</span>
-                in {{ selectedSegment?.name }}
-              </h3>
-              <h3 *ngIf="!selectedRegion">Select a region to add captions</h3>
-            </div>
 
-            <div class="caption-preview" *ngIf="selectedRegion">
-              <div class="preview-canvas-wrap">
-                <canvas #captionCanvas class="caption-canvas"></canvas>
-              </div>
-            </div>
-
-            <div class="caption-levels" *ngIf="selectedRegion">
-              <!-- Generate All Button -->
-              <div class="generate-all-bar">
-                <button mat-raised-button class="generate-all-btn" (click)="generateAllCaptions()"
-                        [disabled]="generatingAll || !selectedRegion?.segmented_mask">
-                  <mat-icon *ngIf="!generatingAll">auto_awesome</mat-icon>
-                  <mat-spinner *ngIf="generatingAll" diameter="18"></mat-spinner>
-                  {{ generatingAll ? 'Generating...' : 'Auto Generate All Captions (DAM)' }}
-                </button>
+            <!-- ===== SEGMENT-LEVEL CAPTIONS (when segment selected, no region) ===== -->
+            <ng-container *ngIf="selectedSegment && !selectedRegion">
+              <div class="caption-header">
+                <h3>Segment Captioning: <span class="seg-name">{{ selectedSegment.name }}</span></h3>
               </div>
 
-              <div class="caption-level">
-                <div class="level-header">
-                  <div class="level-badge visual">L1</div>
-                  <div>
-                    <h4>Visual Caption</h4>
-                    <p>Describe what the object looks like visually</p>
+              <div class="caption-preview">
+                <div class="segment-preview-video-wrap">
+                  <video #segmentPreviewVideo class="segment-preview-video"
+                    [src]="segmentPreviewSrc"
+                    (loadeddata)="onSegmentVideoLoaded()"
+                    (timeupdate)="onSegmentPreviewTimeUpdate()"
+                    (ended)="segmentPreviewPlaying = false"></video>
+                  <div class="seg-preview-controls">
+                    <button class="seg-play-btn" (click)="toggleSegmentPreview()">
+                      <mat-icon>{{ segmentPreviewPlaying ? 'pause' : 'play_arrow' }}</mat-icon>
+                    </button>
+                    <div class="seg-progress-wrap" (click)="seekSegmentPreview($event)">
+                      <div class="seg-progress-bar">
+                        <div class="seg-progress-fill" [style.width.%]="segmentPreviewProgress"></div>
+                      </div>
+                    </div>
+                    <span class="seg-time-label">{{ segmentPreviewCurrentLabel }} / {{ segmentPreviewDurationLabel }}</span>
                   </div>
-                  <button mat-icon-button class="generate-btn" matTooltip="Auto generate with DAM"
-                          (click)="generateSingleCaption('visual')"
-                          [disabled]="generatingVisual || !selectedRegion?.segmented_mask">
-                    <mat-icon *ngIf="!generatingVisual">smart_toy</mat-icon>
-                    <mat-spinner *ngIf="generatingVisual" diameter="18"></mat-spinner>
+                </div>
+              </div>
+
+              <div class="caption-levels">
+                <!-- Generate Contextual -->
+                <div class="generate-all-bar">
+                  <button mat-raised-button class="generate-all-btn" (click)="generateAllSegmentCaptions()"
+                          [disabled]="generatingAll">
+                    <mat-icon *ngIf="!generatingAll">auto_awesome</mat-icon>
+                    <mat-spinner *ngIf="generatingAll" diameter="18"></mat-spinner>
+                    {{ generatingAll ? 'Generating...' : 'Auto Generate Contextual (DAM)' }}
                   </button>
                 </div>
-                <div class="bilingual-fields">
-                  <div class="lang-field">
-                    <span class="lang-label">🇬🇧 EN</span>
-                    <mat-form-field appearance="outline">
-                      <textarea matInput [(ngModel)]="captionData.visual_caption" rows="3"
-                        placeholder="e.g., A red sedan car with tinted windows parked on the street"></textarea>
-                    </mat-form-field>
-                    <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
-                            (click)="translateField('visual_caption', 'en_to_vi')" [disabled]="translating">
-                      <mat-icon>south</mat-icon>
-                    </button>
-                  </div>
-                  <div class="lang-field">
-                    <span class="lang-label">🇻🇳 VI</span>
-                    <mat-form-field appearance="outline">
-                      <textarea matInput [(ngModel)]="captionData.visual_caption_vi" rows="3"
-                        placeholder="VD: Một chiếc ô tô sedan màu đỏ với cửa kính tối đậu trên đường"></textarea>
-                    </mat-form-field>
-                    <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
-                            (click)="translateField('visual_caption', 'vi_to_en')" [disabled]="translating">
-                      <mat-icon>north</mat-icon>
-                    </button>
-                  </div>
-                </div>
-              </div>
 
-              <div class="caption-level">
-                <div class="level-header">
-                  <div class="level-badge contextual">L2</div>
-                  <div>
-                    <h4>Contextual Caption</h4>
-                    <p>Describe what the object is and its context</p>
-                  </div>
-                  <button mat-icon-button class="generate-btn" matTooltip="Auto generate with DAM"
-                          (click)="generateSingleCaption('contextual')"
-                          [disabled]="generatingContextual">
-                    <mat-icon *ngIf="!generatingContextual">smart_toy</mat-icon>
-                    <mat-spinner *ngIf="generatingContextual" diameter="18"></mat-spinner>
-                  </button>
-                </div>
-                <div class="bilingual-fields">
-                  <div class="lang-field">
-                    <span class="lang-label">🇬🇧 EN</span>
-                    <mat-form-field appearance="outline">
-                      <textarea matInput [(ngModel)]="captionData.contextual_caption" rows="3"
-                        placeholder="e.g., The car is waiting at a traffic light on a busy intersection"></textarea>
-                    </mat-form-field>
-                    <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
-                            (click)="translateField('contextual_caption', 'en_to_vi')" [disabled]="translating">
-                      <mat-icon>south</mat-icon>
+                <!-- L2 Contextual Caption -->
+                <div class="caption-level">
+                  <div class="level-header">
+                    <div class="level-badge contextual">L2</div>
+                    <div>
+                      <h4>Contextual Caption</h4>
+                      <p>Describe the overall scene context in this segment</p>
+                    </div>
+                    <button mat-icon-button class="generate-btn" matTooltip="Auto generate with DAM"
+                            (click)="generateSingleCaption('contextual')"
+                            [disabled]="generatingContextual">
+                      <mat-icon *ngIf="!generatingContextual">smart_toy</mat-icon>
+                      <mat-spinner *ngIf="generatingContextual" diameter="18"></mat-spinner>
                     </button>
                   </div>
-                  <div class="lang-field">
-                    <span class="lang-label">🇻🇳 VI</span>
-                    <mat-form-field appearance="outline">
-                      <textarea matInput [(ngModel)]="captionData.contextual_caption_vi" rows="3"
-                        placeholder="VD: Chiếc xe đang chờ đèn đỏ tại ngã tư đông đúc"></textarea>
-                    </mat-form-field>
-                    <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
-                            (click)="translateField('contextual_caption', 'vi_to_en')" [disabled]="translating">
-                      <mat-icon>north</mat-icon>
-                    </button>
+                  <div class="bilingual-fields">
+                    <div class="lang-field">
+                      <span class="lang-label">🇬🇧 EN</span>
+                      <mat-form-field appearance="outline">
+                        <textarea matInput [(ngModel)]="segmentCaptionData.contextual_caption" rows="3"
+                          placeholder="e.g., A busy intersection with vehicles and pedestrians during daytime"></textarea>
+                      </mat-form-field>
+                      <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                              (click)="translateField('contextual_caption', 'en_to_vi', 'segment')" [disabled]="translating">
+                        <mat-icon>south</mat-icon>
+                      </button>
+                    </div>
+                    <div class="lang-field">
+                      <span class="lang-label">🇻🇳 VI</span>
+                      <mat-form-field appearance="outline">
+                        <textarea matInput [(ngModel)]="segmentCaptionData.contextual_caption_vi" rows="3"
+                          placeholder="VD: Một ngã tư đông đúc với xe cộ và người đi bộ vào ban ngày"></textarea>
+                      </mat-form-field>
+                      <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                              (click)="translateField('contextual_caption', 'vi_to_en', 'segment')" [disabled]="translating">
+                        <mat-icon>north</mat-icon>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div class="caption-level">
-                <div class="level-header">
-                  <div class="level-badge knowledge">L3</div>
-                  <div>
-                    <h4>Knowledge Caption</h4>
-                    <p>Domain knowledge about the object</p>
+                <!-- L3 Knowledge Caption -->
+                <div class="caption-level">
+                  <div class="level-header">
+                    <div class="level-badge knowledge">L3</div>
+                    <div>
+                      <h4>Knowledge Caption</h4>
+                      <p>Domain knowledge about the scene</p>
+                    </div>
+                  </div>
+                  <div class="bilingual-fields">
+                    <div class="lang-field">
+                      <span class="lang-label">🇬🇧 EN</span>
+                      <mat-form-field appearance="outline">
+                        <textarea matInput [(ngModel)]="segmentCaptionData.knowledge_caption" rows="3"
+                          placeholder="e.g., This intersection follows standard traffic light patterns with a 30-second cycle"></textarea>
+                      </mat-form-field>
+                      <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                              (click)="translateField('knowledge_caption', 'en_to_vi', 'segment')" [disabled]="translating">
+                        <mat-icon>south</mat-icon>
+                      </button>
+                    </div>
+                    <div class="lang-field">
+                      <span class="lang-label">🇻🇳 VI</span>
+                      <mat-form-field appearance="outline">
+                        <textarea matInput [(ngModel)]="segmentCaptionData.knowledge_caption_vi" rows="3"
+                          placeholder="VD: Ngã tư này tuân theo mô hình đèn giao thông tiêu chuẩn với chu kỳ 30 giây"></textarea>
+                      </mat-form-field>
+                      <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                              (click)="translateField('knowledge_caption', 'vi_to_en', 'segment')" [disabled]="translating">
+                        <mat-icon>north</mat-icon>
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div class="bilingual-fields">
-                  <div class="lang-field">
-                    <span class="lang-label">🇬🇧 EN</span>
-                    <mat-form-field appearance="outline">
-                      <textarea matInput [(ngModel)]="captionData.knowledge_caption" rows="3"
-                        placeholder="e.g., This appears to be a Toyota Camry 2020 model, a popular mid-size sedan"></textarea>
-                    </mat-form-field>
-                    <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
-                            (click)="translateField('knowledge_caption', 'en_to_vi')" [disabled]="translating">
-                      <mat-icon>south</mat-icon>
-                    </button>
-                  </div>
-                  <div class="lang-field">
-                    <span class="lang-label">🇻🇳 VI</span>
-                    <mat-form-field appearance="outline">
-                      <textarea matInput [(ngModel)]="captionData.knowledge_caption_vi" rows="3"
-                        placeholder="VD: Đây có vẻ là xe Toyota Camry đời 2020, dòng sedan cỡ trung phổ biến"></textarea>
-                    </mat-form-field>
-                    <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
-                            (click)="translateField('knowledge_caption', 'vi_to_en')" [disabled]="translating">
-                      <mat-icon>north</mat-icon>
-                    </button>
-                  </div>
-                </div>
-              </div>
 
-              <div class="caption-level combined">
-                <div class="level-header">
-                  <div class="level-badge combined-badge">✦</div>
-                  <div>
-                    <h4>Combined Caption</h4>
-                    <p>Final combined description from all levels</p>
+                <!-- Combined Caption -->
+                <div class="caption-level combined">
+                  <div class="level-header">
+                    <div class="level-badge combined-badge">✦</div>
+                    <div>
+                      <h4>Combined Caption</h4>
+                      <p>Final combined description from contextual + knowledge</p>
+                    </div>
                   </div>
-                </div>
-                <div class="bilingual-fields">
-                  <div class="lang-field">
-                    <span class="lang-label">🇬🇧 EN</span>
-                    <mat-form-field appearance="outline">
-                      <textarea matInput [(ngModel)]="captionData.combined_caption" rows="4"
-                        placeholder="Combined description incorporating all caption levels..."></textarea>
-                    </mat-form-field>
-                    <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
-                            (click)="translateField('combined_caption', 'en_to_vi')" [disabled]="translating">
-                      <mat-icon>south</mat-icon>
+                  <div class="bilingual-fields">
+                    <div class="lang-field">
+                      <span class="lang-label">🇬🇧 EN</span>
+                      <mat-form-field appearance="outline">
+                        <textarea matInput [(ngModel)]="segmentCaptionData.combined_caption" rows="4"
+                          placeholder="Combined description incorporating contextual and knowledge levels..."></textarea>
+                      </mat-form-field>
+                      <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                              (click)="translateField('combined_caption', 'en_to_vi', 'segment')" [disabled]="translating">
+                        <mat-icon>south</mat-icon>
+                      </button>
+                    </div>
+                    <div class="lang-field">
+                      <span class="lang-label">🇻🇳 VI</span>
+                      <mat-form-field appearance="outline">
+                        <textarea matInput [(ngModel)]="segmentCaptionData.combined_caption_vi" rows="4"
+                          placeholder="Mô tả tổng hợp kết hợp các cấp độ contextual và knowledge..."></textarea>
+                      </mat-form-field>
+                      <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                              (click)="translateField('combined_caption', 'vi_to_en', 'segment')" [disabled]="translating">
+                        <mat-icon>north</mat-icon>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="combine-actions">
+                    <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineCaptions()">
+                      <mat-icon>auto_awesome</mat-icon> Auto Combine
+                    </button>
+                    <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineAndTranslate()"
+                            [disabled]="translating">
+                      <mat-spinner *ngIf="translating" diameter="16"></mat-spinner>
+                      <mat-icon *ngIf="!translating">translate</mat-icon>
+                      {{ translating ? 'Translating...' : 'Combine & Translate' }}
                     </button>
                   </div>
-                  <div class="lang-field">
-                    <span class="lang-label">🇻🇳 VI</span>
-                    <mat-form-field appearance="outline">
-                      <textarea matInput [(ngModel)]="captionData.combined_caption_vi" rows="4"
-                        placeholder="Mô tả tổng hợp kết hợp tất cả các cấp độ caption..."></textarea>
-                    </mat-form-field>
-                    <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
-                            (click)="translateField('combined_caption', 'vi_to_en')" [disabled]="translating">
-                      <mat-icon>north</mat-icon>
-                    </button>
-                  </div>
                 </div>
-                <div class="combine-actions">
-                  <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineCaptions()">
-                    <mat-icon>auto_awesome</mat-icon> Auto Combine
-                  </button>
-                  <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineAndTranslate()"
-                          [disabled]="translating">
-                    <mat-spinner *ngIf="translating" diameter="16"></mat-spinner>
-                    <mat-icon *ngIf="!translating">translate</mat-icon>
-                    {{ translating ? 'Translating...' : 'Combine & Translate' }}
+
+                <div class="caption-actions">
+                  <button mat-raised-button class="primary-btn" (click)="saveSegmentCaption()">
+                    <mat-icon>save</mat-icon> Save Segment Caption
                   </button>
                 </div>
               </div>
+            </ng-container>
 
-              <div class="caption-actions">
-                <button mat-raised-button class="primary-btn" (click)="saveCaption()">
-                  <mat-icon>save</mat-icon> Save Caption
-                </button>
+            <!-- ===== REGION-LEVEL CAPTION (when region is selected) ===== -->
+            <ng-container *ngIf="selectedRegion">
+              <div class="caption-header">
+                <div class="caption-header-row">
+                  <h3>
+                    Captioning: <span [style.color]="selectedRegion.color">{{ selectedRegion.label }}</span>
+                    in {{ selectedSegment?.name }}
+                  </h3>
+                  <div class="cat-inline-select">
+                    <select class="cat-mini-select" [ngModel]="selectedRegion!.category_id || ''"
+                            (ngModelChange)="onCategoryChange($event || null)">
+                      <option value="">No category</option>
+                      <option *ngFor="let cat of categories" [value]="cat.id">{{ cat.name }}</option>
+                    </select>
+                    <button class="cat-manage-toggle" matTooltip="Manage Categories"
+                            (click)="showCategoryManager = !showCategoryManager">
+                      <mat-icon>{{ showCategoryManager ? 'close' : 'tune' }}</mat-icon>
+                    </button>
+                  </div>
+                </div>
               </div>
+
+              <!-- Inline Category Manager -->
+              <div class="category-manager" *ngIf="showCategoryManager">
+                <div class="cat-manager-header">
+                  <h4>Manage Categories</h4>
+                </div>
+                <div class="cat-list">
+                  <div *ngFor="let cat of categories" class="cat-item">
+                    <span class="cat-color-dot" [style.background]="cat.color"></span>
+                    <span class="cat-name">{{ cat.name }}</span>
+                    <span class="cat-desc" *ngIf="cat.description">{{ cat.description }}</span>
+                    <button class="cat-delete-btn" matTooltip="Delete" (click)="deleteCategory(cat)">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </div>
+                  <div *ngIf="categories.length === 0" class="cat-empty">No categories yet</div>
+                </div>
+                <div class="cat-add-form">
+                  <input type="color" [(ngModel)]="newCategoryColor" class="cat-color-picker">
+                  <input class="cat-name-input" [(ngModel)]="newCategoryName" placeholder="Category name">
+                  <input class="cat-desc-input" [(ngModel)]="newCategoryDesc" placeholder="Description (optional)">
+                  <button class="cat-add-btn" matTooltip="Add Category"
+                          (click)="addCategory()" [disabled]="!newCategoryName.trim()">
+                    <mat-icon>add_circle</mat-icon>
+                  </button>
+                </div>
+              </div>
+
+              <div class="caption-preview">
+                <div class="preview-canvas-wrap">
+                  <canvas #captionCanvas class="caption-canvas"></canvas>
+                </div>
+              </div>
+
+              <div class="caption-levels">
+                <!-- Generate Visual Button -->
+                <div class="generate-all-bar">
+                  <button mat-raised-button class="generate-all-btn" (click)="generateAllCaptions()"
+                          [disabled]="generatingAll || !selectedRegion?.segmented_mask">
+                    <mat-icon *ngIf="!generatingAll">auto_awesome</mat-icon>
+                    <mat-spinner *ngIf="generatingAll" diameter="18"></mat-spinner>
+                    {{ generatingAll ? 'Generating...' : 'Auto Generate Visual Caption (DAM)' }}
+                  </button>
+                </div>
+
+                <!-- L1 Visual Caption -->
+                <div class="caption-level">
+                  <div class="level-header">
+                    <div class="level-badge visual">L1</div>
+                    <div>
+                      <h4>Visual Caption</h4>
+                      <p>Describe what the object looks like visually</p>
+                    </div>
+                    <button mat-icon-button class="generate-btn" matTooltip="Auto generate with DAM"
+                            (click)="generateSingleCaption('visual')"
+                            [disabled]="generatingVisual || !selectedRegion?.segmented_mask">
+                      <mat-icon *ngIf="!generatingVisual">smart_toy</mat-icon>
+                      <mat-spinner *ngIf="generatingVisual" diameter="18"></mat-spinner>
+                    </button>
+                  </div>
+                  <div class="bilingual-fields">
+                    <div class="lang-field">
+                      <span class="lang-label">🇬🇧 EN</span>
+                      <mat-form-field appearance="outline">
+                        <textarea matInput [(ngModel)]="captionData.visual_caption" rows="3"
+                          placeholder="e.g., A red sedan car with tinted windows parked on the street"></textarea>
+                      </mat-form-field>
+                      <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                              (click)="translateField('visual_caption', 'en_to_vi')" [disabled]="translating">
+                        <mat-icon>south</mat-icon>
+                      </button>
+                    </div>
+                    <div class="lang-field">
+                      <span class="lang-label">🇻🇳 VI</span>
+                      <mat-form-field appearance="outline">
+                        <textarea matInput [(ngModel)]="captionData.visual_caption_vi" rows="3"
+                          placeholder="VD: Một chiếc ô tô sedan màu đỏ với cửa kính tối đậu trên đường"></textarea>
+                      </mat-form-field>
+                      <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                              (click)="translateField('visual_caption', 'vi_to_en')" [disabled]="translating">
+                        <mat-icon>north</mat-icon>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- L3 Knowledge Caption -->
+                <div class="caption-level">
+                  <div class="level-header">
+                    <div class="level-badge knowledge">L3</div>
+                    <div>
+                      <h4>Knowledge Caption</h4>
+                      <p>Domain knowledge about the object</p>
+                    </div>
+                  </div>
+                  <div class="bilingual-fields">
+                    <div class="lang-field">
+                      <span class="lang-label">🇬🇧 EN</span>
+                      <mat-form-field appearance="outline">
+                        <textarea matInput [(ngModel)]="captionData.knowledge_caption" rows="3"
+                          placeholder="e.g., This appears to be a Toyota Camry 2020 model, a popular mid-size sedan"></textarea>
+                      </mat-form-field>
+                      <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                              (click)="translateField('knowledge_caption', 'en_to_vi')" [disabled]="translating">
+                        <mat-icon>south</mat-icon>
+                      </button>
+                    </div>
+                    <div class="lang-field">
+                      <span class="lang-label">🇻🇳 VI</span>
+                      <mat-form-field appearance="outline">
+                        <textarea matInput [(ngModel)]="captionData.knowledge_caption_vi" rows="3"
+                          placeholder="VD: Đây có vẻ là xe Toyota Camry đời 2020, dòng sedan cỡ trung phổ biến"></textarea>
+                      </mat-form-field>
+                      <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                              (click)="translateField('knowledge_caption', 'vi_to_en')" [disabled]="translating">
+                        <mat-icon>north</mat-icon>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Combined Caption -->
+                <div class="caption-level combined">
+                  <div class="level-header">
+                    <div class="level-badge combined-badge">✦</div>
+                    <div>
+                      <h4>Combined Caption</h4>
+                      <p>Final combined description from visual + knowledge</p>
+                    </div>
+                  </div>
+                  <div class="bilingual-fields">
+                    <div class="lang-field">
+                      <span class="lang-label">🇬🇧 EN</span>
+                      <mat-form-field appearance="outline">
+                        <textarea matInput [(ngModel)]="captionData.combined_caption" rows="4"
+                          placeholder="Combined description incorporating visual and knowledge levels..."></textarea>
+                      </mat-form-field>
+                      <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                              (click)="translateField('combined_caption', 'en_to_vi')" [disabled]="translating">
+                        <mat-icon>south</mat-icon>
+                      </button>
+                    </div>
+                    <div class="lang-field">
+                      <span class="lang-label">🇻🇳 VI</span>
+                      <mat-form-field appearance="outline">
+                        <textarea matInput [(ngModel)]="captionData.combined_caption_vi" rows="4"
+                          placeholder="Mô tả tổng hợp kết hợp các cấp độ visual và knowledge..."></textarea>
+                      </mat-form-field>
+                      <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                              (click)="translateField('combined_caption', 'vi_to_en')" [disabled]="translating">
+                        <mat-icon>north</mat-icon>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="combine-actions">
+                    <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineRegionCaptions()">
+                      <mat-icon>auto_awesome</mat-icon> Auto Combine
+                    </button>
+                    <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineRegionAndTranslate()"
+                            [disabled]="translating">
+                      <mat-spinner *ngIf="translating" diameter="16"></mat-spinner>
+                      <mat-icon *ngIf="!translating">translate</mat-icon>
+                      {{ translating ? 'Translating...' : 'Combine & Translate' }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="caption-actions">
+                  <button mat-raised-button class="primary-btn" (click)="saveCaption()">
+                    <mat-icon>save</mat-icon> Save Caption
+                  </button>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- No selection placeholder -->
+            <div *ngIf="!selectedSegment" class="caption-header">
+              <h3>Select a segment to add captions</h3>
             </div>
           </div>
 
@@ -633,6 +812,7 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption } from '../../core/model
                     (click)="selectRegionForCaption(region)">
                     <div class="region-color-dot" [style.background]="region.color"></div>
                     <span>{{ region.label }}</span>
+                    <span *ngIf="region.category_name" class="region-cat-badge">{{ region.category_name }}</span>
                     <mat-icon *ngIf="region.caption" class="has-caption-icon">check_circle</mat-icon>
                   </div>
                   <div *ngIf="regions.length === 0" class="no-regions">
@@ -680,6 +860,13 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('drawCanvas') drawCanvasRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('maskCanvas') maskCanvasRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('captionCanvas') captionCanvasRef!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('segmentPreviewVideo') segmentPreviewVideoRef!: ElementRef<HTMLVideoElement>;
+
+  segmentPreviewSrc = '';
+  segmentPreviewPlaying = false;
+  segmentPreviewProgress = 0;
+  segmentPreviewCurrentLabel = '0:00';
+  segmentPreviewDurationLabel = '0:00';
 
   video: VideoItem | null = null;
   steps = ['Segment Video', 'Object Region', 'Captioning'];
@@ -737,6 +924,16 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     knowledge_caption_vi: '',
     combined_caption_vi: ''
   };
+  segmentCaptionData: Caption = {
+    contextual_caption: '',
+    knowledge_caption: '',
+    combined_caption: '',
+    visual_caption: '',
+    contextual_caption_vi: '',
+    knowledge_caption_vi: '',
+    combined_caption_vi: '',
+    visual_caption_vi: ''
+  };
   generatingVisual = false;
   generatingContextual = false;
   generatingAll = false;
@@ -754,6 +951,14 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   private segColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 
   translating = false;
+
+  // Categories
+  categories: Category[] = [];
+  showCategoryManager = false;
+  newCategoryName = '';
+  newCategoryColor = '#3b82f6';
+  newCategoryDesc = '';
+  editingCategory: Category | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -850,9 +1055,13 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
         this.selectedSegment = this.segments[0];
       }
       if (this.selectedSegment) {
+        this.selectedRegion = null;
         this.loadRegions();
+        this.loadSegmentCaption(this.selectedSegment);
+        this.loadSegmentPreview(this.selectedSegment);
       }
       this.loadAllRegionCounts();
+      this.loadCategories();
     }
   }
 
@@ -1672,16 +1881,171 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   // ============ Captioning (Step 3) ============
+  loadCategories(): void {
+    if (!this.video?.project_id) return;
+    this.videoService.getProjectCategories(this.video.project_id).subscribe({
+      next: (cats) => this.categories = cats,
+      error: () => this.categories = []
+    });
+  }
+
+  onCategoryChange(categoryId: string | null): void {
+    if (!this.selectedRegion) return;
+    const cat = this.categories.find(c => c.id === categoryId);
+    this.selectedRegion.category_id = categoryId || undefined;
+    this.selectedRegion.category_name = cat?.name || undefined;
+    this.videoService.updateRegion(this.selectedRegion.id, {
+      category_id: categoryId || '',
+      category_name: cat?.name || ''
+    }).subscribe({
+      next: () => this.snackBar.open('Category updated', '', { duration: 1200, panelClass: 'snack-success' }),
+      error: () => this.snackBar.open('Failed to update category', '', { duration: 2000 })
+    });
+  }
+
+  addCategory(): void {
+    if (!this.video?.project_id || !this.newCategoryName.trim()) return;
+    this.videoService.createCategory(this.video.project_id, {
+      name: this.newCategoryName.trim(),
+      color: this.newCategoryColor,
+      description: this.newCategoryDesc.trim() || undefined
+    }).subscribe({
+      next: (cat) => {
+        this.categories.push(cat);
+        this.newCategoryName = '';
+        this.newCategoryDesc = '';
+        this.snackBar.open('Category added', '', { duration: 1200, panelClass: 'snack-success' });
+      },
+      error: () => this.snackBar.open('Failed to add category', '', { duration: 2000 })
+    });
+  }
+
+  deleteCategory(cat: Category): void {
+    if (!confirm(`Delete category "${cat.name}"? Regions using this category will be unassigned.`)) return;
+    this.videoService.deleteCategory(cat.id).subscribe({
+      next: () => {
+        this.categories = this.categories.filter(c => c.id !== cat.id);
+        // Clear category from any loaded regions using it
+        this.regions.forEach(r => {
+          if (r.category_id === cat.id) {
+            r.category_id = undefined;
+            r.category_name = undefined;
+          }
+        });
+        this.snackBar.open('Category deleted', '', { duration: 1200, panelClass: 'snack-success' });
+      },
+      error: () => this.snackBar.open('Failed to delete category', '', { duration: 2000 })
+    });
+  }
+
   selectSegmentForCaption(seg: VideoSegment): void {
     this.selectedSegment = seg;
     this.selectedRegion = null;
     this.loadRegions();
+    this.loadSegmentCaption(seg);
+    this.loadSegmentPreview(seg);
   }
 
   selectRegionForCaption(region: ObjectRegion): void {
     this.selectedRegion = region;
     this.loadRegionCaption(region);
     this.loadCaptionPreview(region);
+  }
+
+  loadSegmentCaption(seg: VideoSegment): void {
+    this.videoService.getSegmentCaption(seg.id).subscribe({
+      next: (caption) => {
+        if (caption) {
+          this.segmentCaptionData = caption;
+        } else {
+          this.segmentCaptionData = {
+            visual_caption: '',
+            contextual_caption: '',
+            knowledge_caption: '',
+            combined_caption: '',
+            visual_caption_vi: '',
+            contextual_caption_vi: '',
+            knowledge_caption_vi: '',
+            combined_caption_vi: ''
+          };
+        }
+      }
+    });
+  }
+
+  loadSegmentPreview(seg: VideoSegment): void {
+    if (!this.video) return;
+    // Use Media Fragments to clip video to segment range
+    this.segmentPreviewSrc = `${this.video.url}#t=${seg.start_time.toFixed(3)},${seg.end_time.toFixed(3)}`;
+    this.segmentPreviewPlaying = false;
+    const dur = seg.end_time - seg.start_time;
+    this.segmentPreviewDurationLabel = this.formatSegTime(dur);
+    this.segmentPreviewCurrentLabel = this.formatSegTime(0);
+    this.segmentPreviewProgress = 0;
+  }
+
+  onSegmentVideoLoaded(): void {
+    const vid = this.segmentPreviewVideoRef?.nativeElement;
+    if (!vid || !this.selectedSegment) return;
+    // Auto-play from segment start
+    vid.currentTime = this.selectedSegment.start_time;
+    vid.play().then(() => {
+      this.segmentPreviewPlaying = true;
+    }).catch(() => {
+      this.segmentPreviewPlaying = false;
+    });
+  }
+
+  onSegmentPreviewTimeUpdate(): void {
+    const vid = this.segmentPreviewVideoRef?.nativeElement;
+    if (!vid || !this.selectedSegment) return;
+    const seg = this.selectedSegment;
+    // Clamp to segment boundaries
+    if (vid.currentTime >= seg.end_time) {
+      vid.pause();
+      vid.currentTime = seg.end_time;
+      this.segmentPreviewPlaying = false;
+    }
+    if (vid.currentTime < seg.start_time) {
+      vid.currentTime = seg.start_time;
+    }
+    const elapsed = vid.currentTime - seg.start_time;
+    const dur = seg.end_time - seg.start_time;
+    this.segmentPreviewProgress = dur > 0 ? (elapsed / dur) * 100 : 0;
+    this.segmentPreviewCurrentLabel = this.formatSegTime(elapsed);
+  }
+
+  toggleSegmentPreview(): void {
+    const vid = this.segmentPreviewVideoRef?.nativeElement;
+    if (!vid || !this.selectedSegment) return;
+    if (vid.paused) {
+      // If at end, restart from segment start
+      if (vid.currentTime >= this.selectedSegment.end_time - 0.1) {
+        vid.currentTime = this.selectedSegment.start_time;
+      }
+      vid.play();
+      this.segmentPreviewPlaying = true;
+    } else {
+      vid.pause();
+      this.segmentPreviewPlaying = false;
+    }
+  }
+
+  seekSegmentPreview(event: MouseEvent): void {
+    const vid = this.segmentPreviewVideoRef?.nativeElement;
+    if (!vid || !this.selectedSegment) return;
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    const seg = this.selectedSegment;
+    vid.currentTime = seg.start_time + pct * (seg.end_time - seg.start_time);
+  }
+
+  private formatSegTime(seconds: number): string {
+    const s = Math.max(0, Math.floor(seconds));
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
   }
 
   loadRegionCaption(region: ObjectRegion): void {
@@ -1796,22 +2160,22 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   autoCombineCaptions(): void {
+    const d = this.segmentCaptionData;
     const parts: string[] = [];
-    if (this.captionData.visual_caption) parts.push(this.captionData.visual_caption);
-    if (this.captionData.contextual_caption) parts.push(this.captionData.contextual_caption);
-    if (this.captionData.knowledge_caption) parts.push(this.captionData.knowledge_caption);
-    this.captionData.combined_caption = parts.join('. ');
+    if (d.contextual_caption) parts.push(d.contextual_caption);
+    if (d.knowledge_caption) parts.push(d.knowledge_caption);
+    d.combined_caption = parts.join('. ');
 
     const partsVi: string[] = [];
-    if (this.captionData.visual_caption_vi) partsVi.push(this.captionData.visual_caption_vi);
-    if (this.captionData.contextual_caption_vi) partsVi.push(this.captionData.contextual_caption_vi);
-    if (this.captionData.knowledge_caption_vi) partsVi.push(this.captionData.knowledge_caption_vi);
-    this.captionData.combined_caption_vi = partsVi.join('. ');
+    if (d.contextual_caption_vi) partsVi.push(d.contextual_caption_vi);
+    if (d.knowledge_caption_vi) partsVi.push(d.knowledge_caption_vi);
+    d.combined_caption_vi = partsVi.join('. ');
   }
 
   /** Auto combine + translate combined caption via Gemini */
   async autoCombineAndTranslate(): Promise<void> {
     this.autoCombineCaptions();
+    const d = this.segmentCaptionData;
 
     if (!this.geminiService.isConfigured()) {
       this.snackBar.open('Gemini API key not set. Open Settings to configure.', 'Settings', {
@@ -1823,14 +2187,14 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     this.translating = true;
     try {
       // If EN combined exists but VI is empty/just-combined → translate EN→VI
-      if (this.captionData.combined_caption) {
-        const viResult = await this.geminiService.translateToVi(this.captionData.combined_caption);
-        this.captionData.combined_caption_vi = viResult;
+      if (d.combined_caption) {
+        const viResult = await this.geminiService.translateToVi(d.combined_caption);
+        d.combined_caption_vi = viResult;
       }
       // If VI combined exists but EN is empty → translate VI→EN
-      if (this.captionData.combined_caption_vi && !this.captionData.combined_caption) {
-        const enResult = await this.geminiService.translateToEn(this.captionData.combined_caption_vi);
-        this.captionData.combined_caption = enResult;
+      if (d.combined_caption_vi && !d.combined_caption) {
+        const enResult = await this.geminiService.translateToEn(d.combined_caption_vi);
+        d.combined_caption = enResult;
       }
       this.snackBar.open('Translation complete!', '', { duration: 2000, panelClass: 'snack-success' });
     } catch (err: any) {
@@ -1841,7 +2205,7 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /** Translate a single caption field EN↔VI */
-  async translateField(fieldBase: string, direction: 'en_to_vi' | 'vi_to_en'): Promise<void> {
+  async translateField(fieldBase: string, direction: 'en_to_vi' | 'vi_to_en', target: 'region' | 'segment' = 'region'): Promise<void> {
     if (!this.geminiService.isConfigured()) {
       this.snackBar.open('Gemini API key not set. Open Settings to configure.', 'Settings', {
         duration: 5000
@@ -1849,9 +2213,10 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    const data = target === 'segment' ? this.segmentCaptionData : this.captionData;
     const sourceKey = direction === 'en_to_vi' ? fieldBase : fieldBase + '_vi';
     const targetKey = direction === 'en_to_vi' ? fieldBase + '_vi' : fieldBase;
-    const sourceText = (this.captionData as any)[sourceKey];
+    const sourceText = (data as any)[sourceKey];
 
     if (!sourceText?.trim()) {
       this.snackBar.open('Source text is empty', '', { duration: 2000 });
@@ -1861,9 +2226,53 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     this.translating = true;
     try {
       const result = await this.geminiService.translate(sourceText, direction);
-      (this.captionData as any)[targetKey] = result;
+      (data as any)[targetKey] = result;
       const arrow = direction === 'en_to_vi' ? 'EN → VI' : 'VI → EN';
       this.snackBar.open(`Translated ${arrow}`, '', { duration: 2000, panelClass: 'snack-success' });
+    } catch (err: any) {
+      this.snackBar.open(err.message || 'Translation failed', '', { duration: 4000, panelClass: 'snack-error' });
+    } finally {
+      this.translating = false;
+    }
+  }
+
+  /** Auto combine region captions: visual + knowledge → combined */
+  autoCombineRegionCaptions(): void {
+    const d = this.captionData;
+    const parts: string[] = [];
+    if (d.visual_caption) parts.push(d.visual_caption);
+    if (d.knowledge_caption) parts.push(d.knowledge_caption);
+    d.combined_caption = parts.join('. ');
+
+    const partsVi: string[] = [];
+    if (d.visual_caption_vi) partsVi.push(d.visual_caption_vi);
+    if (d.knowledge_caption_vi) partsVi.push(d.knowledge_caption_vi);
+    d.combined_caption_vi = partsVi.join('. ');
+  }
+
+  /** Auto combine region captions + translate via Gemini */
+  async autoCombineRegionAndTranslate(): Promise<void> {
+    this.autoCombineRegionCaptions();
+    const d = this.captionData;
+
+    if (!this.geminiService.isConfigured()) {
+      this.snackBar.open('Gemini API key not set. Open Settings to configure.', 'Settings', {
+        duration: 5000
+      }).onAction().subscribe(() => this.openSettings());
+      return;
+    }
+
+    this.translating = true;
+    try {
+      if (d.combined_caption) {
+        const viResult = await this.geminiService.translateToVi(d.combined_caption);
+        d.combined_caption_vi = viResult;
+      }
+      if (d.combined_caption_vi && !d.combined_caption) {
+        const enResult = await this.geminiService.translateToEn(d.combined_caption_vi);
+        d.combined_caption = enResult;
+      }
+      this.snackBar.open('Translation complete!', '', { duration: 2000, panelClass: 'snack-success' });
     } catch (err: any) {
       this.snackBar.open(err.message || 'Translation failed', '', { duration: 4000, panelClass: 'snack-error' });
     } finally {
@@ -2003,48 +2412,87 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   generateSingleCaption(type: 'visual' | 'contextual'): void {
-    if (!this.selectedRegion || !this.selectedSegment) return;
+    if (!this.selectedSegment) return;
 
-    const maskB64 = this.selectedRegion.segmented_mask || '';
-    if (type === 'visual' && !maskB64) {
-      this.snackBar.open('No mask available for this region.', '', { duration: 3000 });
-      return;
-    }
-
-    if (type === 'visual') this.generatingVisual = true;
-    else this.generatingContextual = true;
-
-    this.snackBar.open('Capturing 8 frames from segment...', '', { duration: 2000 });
-
-    this.captureSegmentFrames().then(async ({ frames, width, height }) => {
-      // Rescale mask to match native video frame dimensions
-      const scaledMask = type === 'visual' ? await this.rescaleMask(maskB64, width, height) : maskB64;
-
-      this.videoService.generateCaption(frames, scaledMask, type).subscribe({
-        next: (res) => {
-          if (type === 'visual') {
+    if (type === 'visual') {
+      if (!this.selectedRegion) return;
+      const maskB64 = this.selectedRegion.segmented_mask || '';
+      if (!maskB64) {
+        this.snackBar.open('No mask available for this region.', '', { duration: 3000 });
+        return;
+      }
+      this.generatingVisual = true;
+      this.snackBar.open('Capturing 8 frames from segment...', '', { duration: 2000 });
+      this.captureSegmentFrames().then(async ({ frames, width, height }) => {
+        const scaledMask = await this.rescaleMask(maskB64, width, height);
+        this.videoService.generateCaption(frames, scaledMask, 'visual').subscribe({
+          next: (res) => {
             this.captionData.visual_caption = res.caption;
             this.generatingVisual = false;
             this.snackBar.open('Visual caption generated!', '', { duration: 2000, panelClass: 'snack-success' });
-          } else {
-            this.captionData.contextual_caption = res.caption;
+          },
+          error: (err) => {
+            this.generatingVisual = false;
+            this.snackBar.open(err.error?.error || 'Failed to generate visual caption', '', { duration: 4000, panelClass: 'snack-error' });
+          }
+        });
+      }).catch(() => {
+        this.generatingVisual = false;
+        this.snackBar.open('Cannot capture frames. Please wait for video to load.', '', { duration: 3000 });
+      });
+    } else {
+      // Contextual caption → segment-level, uses full-frame mask (no region mask needed)
+      this.generatingContextual = true;
+      this.snackBar.open('Capturing 8 frames from segment...', '', { duration: 2000 });
+      this.captureSegmentFrames().then(async ({ frames }) => {
+        // Pass empty mask — backend uses full-white mask for contextual
+        this.videoService.generateCaption(frames, '', 'contextual').subscribe({
+          next: (res) => {
+            this.segmentCaptionData.contextual_caption = res.caption;
             this.generatingContextual = false;
             this.snackBar.open('Contextual caption generated!', '', { duration: 2000, panelClass: 'snack-success' });
+          },
+          error: (err) => {
+            this.generatingContextual = false;
+            this.snackBar.open(err.error?.error || 'Failed to generate contextual caption', '', { duration: 4000, panelClass: 'snack-error' });
           }
+        });
+      }).catch(() => {
+        this.generatingContextual = false;
+        this.snackBar.open('Cannot capture frames. Please wait for video to load.', '', { duration: 3000 });
+      });
+    }
+  }
+
+  /** Generate all segment-level captions (contextual via DAM) */
+  generateAllSegmentCaptions(): void {
+    if (!this.selectedSegment) return;
+    this.generatingAll = true;
+    this.generatingContextual = true;
+    this.snackBar.open('Capturing 8 frames from segment...', '', { duration: 2000 });
+
+    this.captureSegmentFrames().then(async ({ frames }) => {
+      this.videoService.generateCaption(frames, '', 'contextual').subscribe({
+        next: (res) => {
+          this.segmentCaptionData.contextual_caption = res.caption;
+          this.generatingAll = false;
+          this.generatingContextual = false;
+          this.snackBar.open('Contextual caption generated!', '', { duration: 2000, panelClass: 'snack-success' });
         },
         error: (err) => {
-          if (type === 'visual') this.generatingVisual = false;
-          else this.generatingContextual = false;
-          this.snackBar.open(err.error?.error || `Failed to generate ${type} caption`, '', { duration: 4000, panelClass: 'snack-error' });
+          this.generatingAll = false;
+          this.generatingContextual = false;
+          this.snackBar.open(err.error?.error || 'Failed to generate captions', '', { duration: 4000, panelClass: 'snack-error' });
         }
       });
     }).catch(() => {
-      if (type === 'visual') this.generatingVisual = false;
-      else this.generatingContextual = false;
+      this.generatingAll = false;
+      this.generatingContextual = false;
       this.snackBar.open('Cannot capture frames. Please wait for video to load.', '', { duration: 3000 });
     });
   }
 
+  /** Generate visual caption for the selected region */
   generateAllCaptions(): void {
     if (!this.selectedRegion || !this.selectedSegment) return;
 
@@ -2056,38 +2504,28 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.generatingAll = true;
     this.generatingVisual = true;
-    this.generatingContextual = true;
 
     this.snackBar.open('Capturing 8 frames from segment...', '', { duration: 2000 });
 
     this.captureSegmentFrames().then(async ({ frames, width, height }) => {
-      // Rescale mask to match native video frame dimensions
       const scaledMask = await this.rescaleMask(maskB64, width, height);
 
-      this.videoService.generateCaptionBatch(frames, scaledMask).subscribe({
+      this.videoService.generateCaption(frames, scaledMask, 'visual').subscribe({
         next: (res) => {
-          if (res.visual_caption) this.captionData.visual_caption = res.visual_caption;
-          if (res.contextual_caption) this.captionData.contextual_caption = res.contextual_caption;
-          this.autoCombineCaptions();
+          if (res.caption) this.captionData.visual_caption = res.caption;
           this.generatingAll = false;
           this.generatingVisual = false;
-          this.generatingContextual = false;
-          const msg = res.warnings?.length
-            ? `Captions generated with warnings: ${res.warnings.join('; ')}`
-            : 'All captions generated!';
-          this.snackBar.open(msg, '', { duration: 3000, panelClass: 'snack-success' });
+          this.snackBar.open('Visual caption generated!', '', { duration: 2000, panelClass: 'snack-success' });
         },
         error: (err) => {
           this.generatingAll = false;
           this.generatingVisual = false;
-          this.generatingContextual = false;
           this.snackBar.open(err.error?.error || 'Failed to generate captions', '', { duration: 4000, panelClass: 'snack-error' });
         }
       });
     }).catch(() => {
       this.generatingAll = false;
       this.generatingVisual = false;
-      this.generatingContextual = false;
       this.snackBar.open('Cannot capture frames. Please wait for video to load.', '', { duration: 3000 });
     });
   }
@@ -2100,12 +2538,10 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
       video_id: this.video.id,
       region_id: this.selectedRegion.id,
       visual_caption: this.captionData.visual_caption,
-      contextual_caption: this.captionData.contextual_caption,
-      knowledge_caption: this.captionData.knowledge_caption,
-      combined_caption: this.captionData.combined_caption,
       visual_caption_vi: this.captionData.visual_caption_vi,
-      contextual_caption_vi: this.captionData.contextual_caption_vi,
+      knowledge_caption: this.captionData.knowledge_caption,
       knowledge_caption_vi: this.captionData.knowledge_caption_vi,
+      combined_caption: this.captionData.combined_caption,
       combined_caption_vi: this.captionData.combined_caption_vi
     };
 
@@ -2123,6 +2559,37 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
           this.captionData = caption;
           if (this.selectedRegion) this.selectedRegion.caption = caption;
           this.snackBar.open('Caption saved!', '', { duration: 1500, panelClass: 'snack-success' });
+        }
+      });
+    }
+  }
+
+  saveSegmentCaption(): void {
+    if (!this.selectedSegment || !this.video) return;
+
+    const data = {
+      segment_id: this.selectedSegment.id,
+      video_id: this.video.id,
+      contextual_caption: this.segmentCaptionData.contextual_caption,
+      knowledge_caption: this.segmentCaptionData.knowledge_caption,
+      combined_caption: this.segmentCaptionData.combined_caption,
+      contextual_caption_vi: this.segmentCaptionData.contextual_caption_vi,
+      knowledge_caption_vi: this.segmentCaptionData.knowledge_caption_vi,
+      combined_caption_vi: this.segmentCaptionData.combined_caption_vi
+    };
+
+    if (this.segmentCaptionData.id) {
+      this.videoService.updateCaption(this.segmentCaptionData.id, data).subscribe({
+        next: (caption) => {
+          this.segmentCaptionData = caption;
+          this.snackBar.open('Segment caption updated!', '', { duration: 1500, panelClass: 'snack-success' });
+        }
+      });
+    } else {
+      this.videoService.saveCaption(data).subscribe({
+        next: (caption) => {
+          this.segmentCaptionData = caption;
+          this.snackBar.open('Segment caption saved!', '', { duration: 1500, panelClass: 'snack-success' });
         }
       });
     }

@@ -237,6 +237,8 @@ def get_segment_regions(segment_id):
             'segmented_mask': r.get('segmented_mask', ''),
             'label': r.get('label', ''),
             'color': r.get('color', '#FF0000'),
+            'category_id': str(r['category_id']) if r.get('category_id') else None,
+            'category_name': r.get('category_name', ''),
             'caption': {
                 'id': str(caption['_id']),
                 'visual_caption': caption.get('visual_caption', ''),
@@ -275,6 +277,8 @@ def create_region(segment_id):
         'segmented_mask': data.get('segmented_mask', ''),
         'label': data.get('label', 'Object'),
         'color': data.get('color', '#FF0000'),
+        'category_id': ObjectId(data['category_id']) if data.get('category_id') else None,
+        'category_name': data.get('category_name', ''),
         'created_by': request.current_user['_id'],
         'created_at': datetime.now(timezone.utc),
         'updated_at': datetime.now(timezone.utc)
@@ -291,6 +295,8 @@ def create_region(segment_id):
         'segmented_mask': region['segmented_mask'],
         'label': region['label'],
         'color': region['color'],
+        'category_id': str(region['category_id']) if region.get('category_id') else None,
+        'category_name': region.get('category_name', ''),
         'created_at': region['created_at'].isoformat()
     }), 201
 
@@ -319,6 +325,10 @@ def update_region(region_id):
         update_fields['segmented_mask'] = data['segmented_mask']
     if 'frame_time' in data:
         update_fields['frame_time'] = float(data['frame_time'])
+    if 'category_id' in data:
+        update_fields['category_id'] = ObjectId(data['category_id']) if data['category_id'] else None
+    if 'category_name' in data:
+        update_fields['category_name'] = data['category_name']
     update_fields['updated_at'] = datetime.now(timezone.utc)
 
     current_app.db.object_regions.update_one(

@@ -1254,7 +1254,7 @@ export class ProjectDetailComponent implements OnInit {
       assigned_users: this.selectedUsers,
       reviewer: this.selectedReviewer || undefined
     } as any).subscribe({
-      next: () => {
+      next: (newSubpart: any) => {
         this.showSubpartDialog = false;
         this.newSubpartName = '';
         this.newSubpartDesc = '';
@@ -1262,6 +1262,8 @@ export class ProjectDetailComponent implements OnInit {
         this.selectedReviewer = '';
         this.loadProject(this.project!.id);
         this.snackBar.open('Sub part created!', 'Close', { duration: 2000, panelClass: 'snack-success' });
+        // Navigate to the new subpart's video list
+        this.selectSubpart(newSubpart as SubPart);
       }
     });
   }

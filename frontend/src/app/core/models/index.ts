@@ -106,7 +106,18 @@ export interface ObjectRegion {
   segmented_mask: string;
   label: string;
   color: string;
+  category_id?: string;
+  category_name?: string;
   caption?: Caption;
+  created_at: string;
+}
+
+export interface Category {
+  id: string;
+  project_id: string;
+  name: string;
+  description?: string;
+  color: string;
   created_at: string;
 }
 

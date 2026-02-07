@@ -28,6 +28,7 @@ def create_app():
     from routes.annotations import annotations_bp
     from routes.tags import tags_bp
     from routes.settings import settings_bp
+    from routes.categories import categories_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(projects_bp, url_prefix='/api/projects')
@@ -36,6 +37,7 @@ def create_app():
     app.register_blueprint(annotations_bp, url_prefix='/api/annotations')
     app.register_blueprint(tags_bp, url_prefix='/api/tags')
     app.register_blueprint(settings_bp, url_prefix='/api/settings')
+    app.register_blueprint(categories_bp, url_prefix='/api/categories')
 
     # Serve uploaded files
     @app.route('/uploads/<path:filename>')
