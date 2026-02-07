@@ -1,3 +1,5 @@
+// ...existing code...
+// (No duplicate class declaration)
 import { Component, OnInit, ViewChild, ElementRef, AfterViewInit, OnDestroy, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -604,7 +606,7 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption, Category } from '../../
                         {{ cat.name }}
                       </option>
                     </select>
-                    <span *ngIf="selectedRegion?.category_id" class="cat-mini-dot" [style.background]="(categories.find(c => c.id === selectedRegion.category_id)?.color) || '#64748b'"></span>
+                    <span *ngIf="selectedRegion?.category_id" class="cat-mini-dot" [style.background]="getCategoryColor(selectedRegion?.category_id)"></span>
                     <button class="cat-manage-toggle" matTooltip="Manage Categories"
                             (click)="showCategoryManager = !showCategoryManager">
                       <mat-icon>{{ showCategoryManager ? 'close' : 'tune' }}</mat-icon>
@@ -973,6 +975,15 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     private dialog: MatDialog,
     private snackBar: MatSnackBar
   ) {}
+
+  /**
+   * Returns the color of a category by its id, or a default if not found.
+   */
+  getCategoryColor(categoryId: string | undefined | null): string {
+    if (!categoryId) return '#888';
+    const cat = this.categories.find(c => c.id === categoryId);
+    return cat?.color || '#888';
+  }
 
   ngOnInit(): void {
     const videoId = this.route.snapshot.paramMap.get('videoId')!;
