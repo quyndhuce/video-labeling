@@ -1,0 +1,42 @@
+<div class="auth-container">
+  <div class="auth-bg">
+    <div class="bg-gradient"></div>
+    <div class="bg-pattern"></div>
+  </div>
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="logo">
+        <mat-icon class="logo-icon">videocam</mat-icon>
+      </div>
+      <h1>Video Annotator</h1>
+      <p>Sign in to continue to your workspace</p>
+    </div>
+
+    <form (ngSubmit)="onLogin()" class="auth-form">
+      <mat-form-field appearance="outline">
+        <mat-label>Username</mat-label>
+        <input matInput [(ngModel)]="username" name="username" required>
+        <mat-icon matPrefix>person</mat-icon>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Password</mat-label>
+        <input matInput [type]="hidePassword ? 'password' : 'text'" [(ngModel)]="password" name="password" required>
+        <mat-icon matPrefix>lock</mat-icon>
+        <button mat-icon-button matSuffix (click)="hidePassword = !hidePassword" type="button">
+          <mat-icon>{{hidePassword ? 'visibility_off' : 'visibility'}}</mat-icon>
+        </button>
+      </mat-form-field>
+
+      <button mat-raised-button color="primary" type="submit" [disabled]="loading" class="submit-btn">
+        <mat-spinner *ngIf="loading" diameter="20"></mat-spinner>
+        <span *ngIf="!loading">Sign In</span>
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      <span>Don't have an account?</span>
+      <a routerLink="/register">Create one</a>
+    </div>
+  </div>
+</div>

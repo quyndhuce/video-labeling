@@ -1,0 +1,117 @@
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="nav-left">
+    <div class="nav-logo">
+      <mat-icon>videocam</mat-icon>
+      <span>Video Annotator</span>
+    </div>
+  </div>
+  <div class="nav-right">
+    <div class="user-info" [matMenuTriggerFor]="userMenu">
+      <div class="user-avatar" [style.background]="user()?.avatar_color || '#4A90D9'">
+        {{ user()?.full_name?.charAt(0) || user()?.username?.charAt(0) || 'U' }}
+      </div>
+      <span class="user-name">{{ user()?.full_name || user()?.username }}</span>
+      <mat-icon>arrow_drop_down</mat-icon>
+    </div>
+    <mat-menu #userMenu="matMenu">
+      <button mat-menu-item (click)="openSettings()">
+        <mat-icon>settings</mat-icon>
+        <span>Settings</span>
+      </button>
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Logout</span>
+      </button>
+    </mat-menu>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<div class="dashboard-content">
+  <div class="page-header">
+    <div>
+      <h1>My Projects</h1>
+      <p>Manage your video annotation projects</p>
+    </div>
+    <button mat-raised-button class="create-btn" (click)="showCreateDialog = true">
+      <mat-icon>add</mat-icon>
+      New Project
+    </button>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+
+  <!-- Projects Grid -->
+  <div *ngIf="!loading" class="projects-grid">
+    <div *ngFor="let project of projects" class="project-card" (click)="openProject(project)">
+      <div class="card-header">
+        <div class="card-icon" [style.background]="getProjectColor(project)">
+          <mat-icon>folder</mat-icon>
+        </div>
+        <button mat-icon-button [matMenuTriggerFor]="projectMenu" (click)="$event.stopPropagation()">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #projectMenu="matMenu">
+          <button mat-menu-item (click)="exportProject(project)">
+            <mat-icon>download</mat-icon>
+            <span>Export Dataset</span>
+          </button>
+          <button mat-menu-item (click)="deleteProject(project)">
+            <mat-icon color="warn">delete</mat-icon>
+            <span>Delete</span>
+          </button>
+        </mat-menu>
+      </div>
+      <h3>{{ project.name }}</h3>
+      <p class="card-desc">{{ project.description || 'No description' }}</p>
+      <div class="card-stats">
+        <div class="stat">
+          <mat-icon>segment</mat-icon>
+          <span>{{ project.subpart_count || 0 }} parts</span>
+        </div>
+        <div class="stat">
+          <mat-icon>movie</mat-icon>
+          <span>{{ project.video_count || 0 }} videos</span>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="status-badge" [class]="project.status">{{ project.status }}</span>
+        <span class="date">{{ project.created_at | date:'mediumDate' }}</span>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="projects.length === 0" class="empty-state">
+      <mat-icon>folder_open</mat-icon>
+      <h3>No projects yet</h3>
+      <p>Create your first annotation project to get started</p>
+      <button mat-raised-button class="create-btn" (click)="showCreateDialog = true">
+        <mat-icon>add</mat-icon>
+        Create Project
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Project Dialog -->
+<div class="dialog-overlay" *ngIf="showCreateDialog" (click)="showCreateDialog = false">
+  <div class="dialog-card" (click)="$event.stopPropagation()">
+    <h2>Create New Project</h2>
+    <mat-form-field appearance="outline">
+      <mat-label>Project Name</mat-label>
+      <input matInput [(ngModel)]="newProjectName" placeholder="Enter project name">
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Description</mat-label>
+      <textarea matInput [(ngModel)]="newProjectDesc" rows="3" placeholder="Enter project description"></textarea>
+    </mat-form-field>
+    <div class="dialog-actions">
+      <button mat-button (click)="showCreateDialog = false">Cancel</button>
+      <button mat-raised-button class="create-btn" (click)="createProject()" [disabled]="!newProjectName">Create</button>
+    </div>
+  </div>
+</div>

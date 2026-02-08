@@ -1,0 +1,611 @@
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="nav-left">
+    <button mat-icon-button (click)="goBack()">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <div class="nav-title">
+      <h2>{{ project?.name }}</h2>
+      <span class="status-badge" [class]="project?.status">{{ project?.status }}</span>
+      <button mat-icon-button matTooltip="Edit Project" (click)="openEditProjectDialog()" *ngIf="project">
+        <mat-icon>edit</mat-icon>
+      </button>
+      <button mat-icon-button matTooltip="Manage Tags" (click)="openTagManager()" *ngIf="project">
+        <mat-icon>label</mat-icon>
+      </button>
+    </div>
+  </div>
+  <div class="nav-right">
+    <div class="user-info" [matMenuTriggerFor]="userMenu">
+      <div class="user-avatar" [style.background]="user()?.avatar_color || '#4A90D9'">
+        {{ user()?.full_name?.charAt(0) || 'U' }}
+      </div>
+      <mat-icon>arrow_drop_down</mat-icon>
+    </div>
+    <mat-menu #userMenu="matMenu">
+      <button mat-menu-item (click)="openSettings()">
+        <mat-icon>settings</mat-icon>
+        <span>Settings</span>
+      </button>
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Logout</span>
+      </button>
+    </mat-menu>
+  </div>
+</nav>
+
+<div class="content" *ngIf="project">
+  <!-- Breadcrumb -->
+  <div class="breadcrumb">
+    <span class="crumb clickable" (click)="selectedSubpart = null; subpartVideos = []">
+      <mat-icon>folder</mat-icon> {{ project.name }}
+    </span>
+    <ng-container *ngIf="selectedSubpart">
+      <mat-icon class="crumb-sep">chevron_right</mat-icon>
+      <span class="crumb active">
+        <mat-icon>dashboard</mat-icon> {{ selectedSubpart.name }}
+      </span>
+    </ng-container>
+  </div>
+
+  <!-- ========== SUB PARTS VIEW ========== -->
+  <div *ngIf="!selectedSubpart" class="subparts-view">
+    <div class="section-header">
+      <h3>Sub Parts ({{ project.subparts?.length || 0 }})</h3>
+      <button mat-raised-button class="primary-btn" (click)="showSubpartDialog = true">
+        <mat-icon>add</mat-icon> Add Sub Part
+      </button>
+    </div>
+
+    <!-- Subpart Filters -->
+    <div class="filter-bar" *ngIf="project.subparts?.length">
+      <button class="filter-chip" [class.active]="subpartFilter === 'all'" (click)="setSubpartFilter('all')">
+        All <span class="filter-count">{{ project.subparts?.length }}</span>
+      </button>
+      <button class="filter-chip" [class.active]="subpartFilter === 'active'" (click)="setSubpartFilter('active')">
+        <span class="dot active"></span> Active <span class="filter-count">{{ getSubpartCountByStatus('active') }}</span>
+      </button>
+      <button class="filter-chip" [class.active]="subpartFilter === 'pending'" (click)="setSubpartFilter('pending')">
+        <span class="dot pending"></span> Pending <span class="filter-count">{{ getSubpartCountByStatus('pending') }}</span>
+      </button>
+      <button class="filter-chip" [class.active]="subpartFilter === 'completed'" (click)="setSubpartFilter('completed')">
+        <span class="dot completed"></span> Completed <span class="filter-count">{{ getSubpartCountByStatus('completed') }}</span>
+      </button>
+    </div>
+
+    <div class="subparts-grid">
+      <div *ngFor="let sp of paginatedSubparts; let i = index"
+           class="subpart-card" (click)="selectSubpart(sp)">
+        <div class="sp-header">
+          <div class="sp-order">{{ (subpartPage - 1) * subpartPageSize + i + 1 }}</div>
+          <div class="sp-info">
+            <h4>{{ sp.name }}</h4>
+            <p>{{ sp.description || 'No description' }}</p>
+          </div>
+          <div class="sp-actions" (click)="$event.stopPropagation()">
+            <span class="status-badge" [class]="sp.status">{{ sp.status }}</span>
+            <button mat-icon-button [matMenuTriggerFor]="spMenu">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #spMenu="matMenu">
+              <button mat-menu-item (click)="openEditSubpartDialog(sp)">
+                <mat-icon>edit</mat-icon>
+                <span>Edit</span>
+              </button>
+              <button mat-menu-item (click)="deleteSubpart(sp)">
+                <mat-icon color="warn">delete</mat-icon>
+                <span>Delete</span>
+              </button>
+            </mat-menu>
+          </div>
+        </div>
+        <div class="sp-users">
+          <mat-icon>people</mat-icon>
+          <div *ngIf="sp.assigned_user_details?.length; else noUsers" class="user-chips">
+            <div *ngFor="let u of sp.assigned_user_details" class="user-chip"
+              [style.background]="u.avatar_color || '#4A90D9'">
+              <span class="chip-avatar">{{ u.full_name?.charAt(0) || u.username?.charAt(0) }}</span>
+              <span class="chip-name">{{ u.full_name || u.username }}</span>
+            </div>
+          </div>
+          <ng-template #noUsers>
+            <span class="no-users">No users assigned</span>
+          </ng-template>
+        </div>
+        <div class="sp-reviewer" *ngIf="sp.reviewer_details">
+          <mat-icon>verified_user</mat-icon>
+          <span class="reviewer-label">Reviewer:</span>
+          <div class="user-chip reviewer-chip"
+               [style.background]="sp.reviewer_details.avatar_color || '#e8590c'">
+            <span class="chip-avatar">{{ sp.reviewer_details.full_name?.charAt(0) || sp.reviewer_details.username?.charAt(0) }}</span>
+            <span class="chip-name">{{ sp.reviewer_details.full_name || sp.reviewer_details.username }}</span>
+          </div>
+        </div>
+        <div class="sp-reviewer" *ngIf="!sp.reviewer_details && !sp.reviewer">
+          <mat-icon>verified_user</mat-icon>
+          <span class="no-users">No reviewer assigned</span>
+        </div>
+        <div class="sp-footer">
+          <div class="sp-stat">
+            <mat-icon>movie</mat-icon>
+            <span>{{ sp.video_count || 0 }} videos</span>
+          </div>
+          <mat-icon class="sp-arrow">arrow_forward</mat-icon>
+        </div>
+      </div>
+
+      <div *ngIf="!project.subparts?.length" class="empty-section">
+        <mat-icon>dashboard_customize</mat-icon>
+        <p>No sub parts yet. Create one to start organizing videos.</p>
+        <button mat-raised-button class="primary-btn" (click)="showSubpartDialog = true">
+          <mat-icon>add</mat-icon> Create Sub Part
+        </button>
+      </div>
+      <div *ngIf="project.subparts?.length && !filteredSubparts.length" class="empty-section">
+        <mat-icon>filter_list_off</mat-icon>
+        <p>No sub parts match the selected filter.</p>
+      </div>
+    </div>
+
+    <!-- Subpart Pagination -->
+    <div class="pagination-bar" *ngIf="subpartTotalPages > 1">
+      <button mat-icon-button [disabled]="subpartPage <= 1" (click)="subpartPage = 1">
+        <mat-icon>first_page</mat-icon>
+      </button>
+      <button mat-icon-button [disabled]="subpartPage <= 1" (click)="subpartPage = subpartPage - 1">
+        <mat-icon>chevron_left</mat-icon>
+      </button>
+      <span class="page-info">Page {{ subpartPage }} of {{ subpartTotalPages }}</span>
+      <button mat-icon-button [disabled]="subpartPage >= subpartTotalPages" (click)="subpartPage = subpartPage + 1">
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+      <button mat-icon-button [disabled]="subpartPage >= subpartTotalPages" (click)="subpartPage = subpartTotalPages">
+        <mat-icon>last_page</mat-icon>
+      </button>
+      <span class="page-size-label">{{ filteredSubparts.length }} total</span>
+    </div>
+  </div>
+
+  <!-- ========== SUBPART VIDEOS VIEW ========== -->
+  <div *ngIf="selectedSubpart" class="videos-view">
+    <div class="section-header">
+      <div class="section-title-group">
+        <h3>{{ selectedSubpart.name }}</h3>
+        <span class="video-count-badge" *ngIf="videoFilter === 'all'">{{ subpartVideos.length }} videos</span>
+        <span class="video-count-badge" *ngIf="videoFilter !== 'all'">{{ filteredVideos.length }} / {{ subpartVideos.length }} videos</span>
+      </div>
+      <div class="header-actions">
+        <button mat-raised-button class="primary-btn" (click)="triggerUpload()">
+          <mat-icon>cloud_upload</mat-icon> Upload Video
+        </button>
+        <input type="file" #fileInput accept="video/*" (change)="onFileSelected($event)" style="display:none" multiple>
+      </div>
+    </div>
+
+    <!-- Upload Progress -->
+    <div *ngIf="uploading" class="upload-progress">
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+      <span>Uploading video...</span>
+    </div>
+
+    <!-- Stats Summary -->
+    <div *ngIf="subpartVideos.length" class="stats-summary">
+      <div class="stat-item">
+        <mat-icon>movie</mat-icon>
+        <div class="stat-text">
+          <span class="stat-value">{{ subpartVideos.length }}</span>
+          <span class="stat-label">Videos</span>
+        </div>
+      </div>
+      <div class="stat-item">
+        <mat-icon>content_cut</mat-icon>
+        <div class="stat-text">
+          <span class="stat-value">{{ getTotalSegments() }}</span>
+          <span class="stat-label">Segments</span>
+        </div>
+      </div>
+      <div class="stat-item">
+        <mat-icon>crop_free</mat-icon>
+        <div class="stat-text">
+          <span class="stat-value">{{ getTotalObjects() }}</span>
+          <span class="stat-label">Objects</span>
+        </div>
+      </div>
+      <div class="stat-item">
+        <mat-icon>subtitles</mat-icon>
+        <div class="stat-text">
+          <span class="stat-value">{{ getTotalCaptions() }}</span>
+          <span class="stat-label">Captions</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Video Filters -->
+    <div class="filter-bar" *ngIf="subpartVideos.length > 0">
+      <button class="filter-chip" [class.active]="videoFilter === 'all'" (click)="setVideoFilter('all')">
+        All <span class="filter-count">{{ subpartVideos.length }}</span>
+      </button>
+      <button class="filter-chip" [class.active]="videoFilter === 'not_submitted'" (click)="setVideoFilter('not_submitted')">
+        <mat-icon class="filter-icon">radio_button_unchecked</mat-icon> Not Submitted
+        <span class="filter-count">{{ getVideoCountByStatus('not_submitted') }}</span>
+      </button>
+      <button class="filter-chip" [class.active]="videoFilter === 'pending_review'" (click)="setVideoFilter('pending_review')">
+        <mat-icon class="filter-icon">hourglass_empty</mat-icon> Pending
+        <span class="filter-count">{{ getVideoCountByStatus('pending_review') }}</span>
+      </button>
+      <button class="filter-chip" [class.active]="videoFilter === 'approved'" (click)="setVideoFilter('approved')">
+        <mat-icon class="filter-icon">check_circle</mat-icon> Approved
+        <span class="filter-count">{{ getVideoCountByStatus('approved') }}</span>
+      </button>
+      <button class="filter-chip" [class.active]="videoFilter === 'rejected'" (click)="setVideoFilter('rejected')">
+        <mat-icon class="filter-icon">cancel</mat-icon> Rejected
+        <span class="filter-count">{{ getVideoCountByStatus('rejected') }}</span>
+      </button>
+    </div>
+
+    <div class="videos-grid">
+      <div *ngFor="let video of paginatedVideos" class="video-card" (click)="openEditor(video)">
+        <div class="video-thumb">
+          <img *ngIf="video.thumbnail_url" [src]="video.thumbnail_url" alt="thumbnail" class="thumb-img">
+          <mat-icon *ngIf="!video.thumbnail_url">play_circle</mat-icon>
+          <div class="thumb-play-icon">
+            <mat-icon>play_circle_filled</mat-icon>
+          </div>
+          <div class="video-duration">{{ formatDuration(video.duration) }}</div>
+        </div>
+        <div class="video-info">
+          <h4 [matTooltip]="video.original_name">{{ video.original_name }}</h4>
+          <div class="video-tags" *ngIf="getVideoTags(video).length">
+            <span class="tag-chip" *ngFor="let tag of getVideoTags(video)"
+                  [style.background]="tag.color + '22'" [style.color]="tag.color"
+                  [style.border-color]="tag.color + '44'">
+              {{ tag.name }}
+            </span>
+          </div>
+          <!-- Annotators -->
+          <div class="video-annotators" *ngIf="video.annotators?.length">
+            <mat-icon>people</mat-icon>
+            <div *ngFor="let uid of video.annotators" class="user-chip small"
+                 [style.background]="getUserById(uid)?.avatar_color || '#4A90D9'"
+                 [matTooltip]="getUserById(uid)?.full_name || getUserById(uid)?.username || ''">
+              {{ (getUserById(uid)?.full_name || getUserById(uid)?.username || '?').charAt(0) }}
+            </div>
+          </div>
+          <div class="video-stats">
+            <div class="stat-row">
+              <div class="mini-stat" [class.ok]="(video.segments_count || 0) > 0"
+                   [matTooltip]="(video.segments_count || 0) + ' segments'">
+                <mat-icon>content_cut</mat-icon>
+                <span>{{ video.segments_count || 0 }}</span>
+              </div>
+              <div class="mini-stat" [class.ok]="(video.objects_count || 0) > 0"
+                   [matTooltip]="(video.objects_count || 0) + ' objects'">
+                <mat-icon>crop_free</mat-icon>
+                <span>{{ video.objects_count || 0 }}</span>
+              </div>
+              <div class="mini-stat"
+                   [class.ok]="(video.captions_count || 0) > 0"
+                   [class.warn]="(video.objects_count || 0) > 0 && (video.captions_count || 0) < (video.objects_count || 0)"
+                   [matTooltip]="getCaptionTooltip(video)">
+                <mat-icon>subtitles</mat-icon>
+                <span>{{ video.captions_count || 0 }}<span *ngIf="(video.objects_count || 0) > 0">/{{ video.objects_count }}</span></span>
+              </div>
+            </div>
+            <div class="annotation-bar">
+              <div class="bar-fill" [style.width.%]="getAnnotationProgress(video)"
+                   [class.complete]="getAnnotationProgress(video) === 100"
+                   [class.partial]="getAnnotationProgress(video) > 0 && getAnnotationProgress(video) < 100">
+              </div>
+            </div>
+          </div>
+          <div class="video-footer">
+            <div class="step-indicator">
+              <div class="step" [class.active]="video.current_step >= 1" [class.completed]="video.current_step > 1"
+                   matTooltip="Segmentation">1</div>
+              <div class="step-line" [class.completed]="video.current_step > 1"></div>
+              <div class="step" [class.active]="video.current_step >= 2" [class.completed]="video.current_step > 2"
+                   matTooltip="Object Regions">2</div>
+              <div class="step-line" [class.completed]="video.current_step > 2"></div>
+              <div class="step" [class.active]="video.current_step >= 3" [class.completed]="video.current_step > 3"
+                   matTooltip="Captioning">3</div>
+            </div>
+            <div class="video-actions-row">
+              <button mat-icon-button (click)="openAnnotatorDialog(video); $event.stopPropagation()"
+                      matTooltip="Assign Annotators">
+                <mat-icon>person_add</mat-icon>
+              </button>
+              <button mat-icon-button (click)="openVideoTagDialog(video); $event.stopPropagation()"
+                      matTooltip="Edit Tags">
+                <mat-icon>label</mat-icon>
+              </button>
+              <button mat-icon-button (click)="deleteVideo(video); $event.stopPropagation()"
+                      matTooltip="Delete video">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          </div>
+          <!-- Review Status Bar -->
+          <div class="review-bar" *ngIf="selectedSubpart?.reviewer">
+            <div class="review-status-row">
+              <span class="review-badge" [class]="video.review_status || 'not_submitted'">
+                <mat-icon>{{ getReviewIcon(video.review_status) }}</mat-icon>
+                {{ getReviewLabel(video.review_status) }}
+              </span>
+              <span class="review-spacer"></span>
+              <!-- Annotator: Submit for Review -->
+              <button *ngIf="canSubmitForReview(video)" mat-stroked-button class="submit-review-btn"
+                      (click)="submitForReview(video); $event.stopPropagation()" matTooltip="Submit for cross-check review">
+                <mat-icon>send</mat-icon> Submit
+              </button>
+              <!-- Reviewer: Approve / Reject -->
+              <ng-container *ngIf="canReview(video)">
+                <button mat-stroked-button class="approve-btn"
+                        (click)="reviewAction(video, 'approve'); $event.stopPropagation()">
+                  <mat-icon>check_circle</mat-icon> Approve
+                </button>
+                <button mat-stroked-button class="reject-btn"
+                        (click)="openRejectDialog(video); $event.stopPropagation()">
+                  <mat-icon>cancel</mat-icon> Reject
+                </button>
+              </ng-container>
+            </div>
+            <div class="review-comment-text" *ngIf="video.review_comment"
+                 [class.rejected]="video.review_status === 'rejected'">
+              <mat-icon>comment</mat-icon>
+              <span>{{ video.review_comment }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="subpartVideos.length === 0 && !loadingVideos" class="empty-section">
+        <mat-icon>video_library</mat-icon>
+        <p>No videos in this sub part yet.</p>
+        <button mat-raised-button class="primary-btn" (click)="triggerUpload()">
+          <mat-icon>cloud_upload</mat-icon> Upload Video
+        </button>
+      </div>
+
+      <div *ngIf="subpartVideos.length > 0 && !filteredVideos.length" class="empty-section">
+        <mat-icon>filter_list_off</mat-icon>
+        <p>No videos match the selected filter.</p>
+      </div>
+
+      <div *ngIf="loadingVideos" class="empty-section">
+        <mat-spinner diameter="36"></mat-spinner>
+      </div>
+    </div>
+
+    <!-- Video Pagination -->
+    <div class="pagination-bar" *ngIf="videoTotalPages > 1">
+      <button mat-icon-button [disabled]="videoPage <= 1" (click)="videoPage = 1">
+        <mat-icon>first_page</mat-icon>
+      </button>
+      <button mat-icon-button [disabled]="videoPage <= 1" (click)="videoPage = videoPage - 1">
+        <mat-icon>chevron_left</mat-icon>
+      </button>
+      <span class="page-info">Page {{ videoPage }} of {{ videoTotalPages }}</span>
+      <button mat-icon-button [disabled]="videoPage >= videoTotalPages" (click)="videoPage = videoPage + 1">
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+      <button mat-icon-button [disabled]="videoPage >= videoTotalPages" (click)="videoPage = videoTotalPages">
+        <mat-icon>last_page</mat-icon>
+      </button>
+      <span class="page-size-label">{{ filteredVideos.length }} total</span>
+    </div>
+  </div>
+</div>
+
+<!-- Loading -->
+<div *ngIf="!project" class="loading-page">
+  <mat-spinner diameter="40"></mat-spinner>
+</div>
+
+<!-- Create Subpart Dialog -->
+<div class="dialog-overlay" *ngIf="showSubpartDialog" (click)="showSubpartDialog = false">
+  <div class="dialog-card" (click)="$event.stopPropagation()">
+    <h2>Add Sub Part</h2>
+    <mat-form-field appearance="outline">
+      <mat-label>Name</mat-label>
+      <input matInput [(ngModel)]="newSubpartName" placeholder="Sub part name">
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Description</mat-label>
+      <textarea matInput [(ngModel)]="newSubpartDesc" rows="2"></textarea>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Assign Users</mat-label>
+      <mat-select [(ngModel)]="selectedUsers" multiple>
+        <mat-option *ngFor="let u of allUsers" [value]="u.id">
+          {{ u.full_name || u.username }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Cross-Check Reviewer</mat-label>
+      <mat-select [(ngModel)]="selectedReviewer">
+        <mat-option [value]="''">— None —</mat-option>
+        <mat-option *ngFor="let u of allUsers" [value]="u.id">
+          {{ u.full_name || u.username }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+    <div class="dialog-actions">
+      <button mat-button (click)="showSubpartDialog = false">Cancel</button>
+      <button mat-raised-button class="primary-btn" (click)="createSubpart()" [disabled]="!newSubpartName">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Project Dialog -->
+<div class="dialog-overlay" *ngIf="showEditProjectDialog" (click)="showEditProjectDialog = false">
+  <div class="dialog-card" (click)="$event.stopPropagation()">
+    <h2>Edit Project</h2>
+    <mat-form-field appearance="outline">
+      <mat-label>Name</mat-label>
+      <input matInput [(ngModel)]="editProjectName">
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Description</mat-label>
+      <textarea matInput [(ngModel)]="editProjectDesc" rows="3"></textarea>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Status</mat-label>
+      <mat-select [(ngModel)]="editProjectStatus">
+        <mat-option value="active">Active</mat-option>
+        <mat-option value="pending">Pending</mat-option>
+        <mat-option value="completed">Completed</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <div class="dialog-actions">
+      <button mat-button (click)="showEditProjectDialog = false">Cancel</button>
+      <button mat-raised-button class="primary-btn" (click)="saveEditProject()" [disabled]="!editProjectName">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Subpart Dialog -->
+<div class="dialog-overlay" *ngIf="showEditSubpartDialog" (click)="showEditSubpartDialog = false">
+  <div class="dialog-card" (click)="$event.stopPropagation()">
+    <h2>Edit Sub Part</h2>
+    <mat-form-field appearance="outline">
+      <mat-label>Name</mat-label>
+      <input matInput [(ngModel)]="editSubpartName">
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Description</mat-label>
+      <textarea matInput [(ngModel)]="editSubpartDesc" rows="2"></textarea>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Status</mat-label>
+      <mat-select [(ngModel)]="editSubpartStatus">
+        <mat-option value="active">Active</mat-option>
+        <mat-option value="pending">Pending</mat-option>
+        <mat-option value="completed">Completed</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Assigned Users</mat-label>
+      <mat-select [(ngModel)]="editSubpartUsers" multiple>
+        <mat-option *ngFor="let u of allUsers" [value]="u.id">
+          {{ u.full_name || u.username }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Cross-Check Reviewer</mat-label>
+      <mat-select [(ngModel)]="editSubpartReviewer">
+        <mat-option [value]="''">— None —</mat-option>
+        <mat-option *ngFor="let u of allUsers" [value]="u.id">
+          {{ u.full_name || u.username }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+    <div class="dialog-actions">
+      <button mat-button (click)="showEditSubpartDialog = false">Cancel</button>
+      <button mat-raised-button class="primary-btn" (click)="saveEditSubpart()" [disabled]="!editSubpartName">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tag Manager Dialog -->
+<div class="dialog-overlay" *ngIf="showTagManager" (click)="showTagManager = false">
+  <div class="dialog-card tag-manager-card" (click)="$event.stopPropagation()">
+    <h2>Manage Tags</h2>
+    <div class="tag-create-row">
+      <input class="tag-input" [(ngModel)]="newTagName" placeholder="Tag name" (keydown.enter)="createTag()">
+      <input type="color" class="tag-color-input" [(ngModel)]="newTagColor">
+      <button mat-mini-fab class="primary-btn" (click)="createTag()" [disabled]="!newTagName">
+        <mat-icon>add</mat-icon>
+      </button>
+    </div>
+    <div class="tags-list">
+      <div *ngFor="let tag of projectTags" class="tag-row">
+        <span class="tag-dot" [style.background]="tag.color"></span>
+        <span class="tag-name" *ngIf="editingTagId !== tag.id">{{ tag.name }}</span>
+        <input *ngIf="editingTagId === tag.id" class="tag-input tag-edit-input"
+               [(ngModel)]="editingTagName" (keydown.enter)="saveEditTag(tag)"
+               (keydown.escape)="editingTagId = ''">
+        <span class="tag-spacer"></span>
+        <button mat-icon-button *ngIf="editingTagId !== tag.id" (click)="startEditTag(tag)" matTooltip="Edit">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button *ngIf="editingTagId === tag.id" (click)="saveEditTag(tag)" matTooltip="Save">
+          <mat-icon>check</mat-icon>
+        </button>
+        <button mat-icon-button (click)="deleteTag(tag)" matTooltip="Delete">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </div>
+      <div *ngIf="!projectTags.length" class="empty-tags">
+        <span>No tags yet. Create one above.</span>
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <button mat-raised-button (click)="showTagManager = false">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Video Tag Assignment Dialog -->
+<div class="dialog-overlay" *ngIf="showVideoTagDialog" (click)="showVideoTagDialog = false">
+  <div class="dialog-card" (click)="$event.stopPropagation()">
+    <h2>Assign Tags</h2>
+    <p class="dialog-subtitle">{{ editingVideo?.original_name }}</p>
+    <div class="tag-select-list">
+      <div *ngFor="let tag of projectTags" class="tag-select-row"
+           (click)="toggleVideoTag(tag.id)" [class.selected]="videoTagIds.includes(tag.id)">
+        <span class="tag-dot" [style.background]="tag.color"></span>
+        <span class="tag-name">{{ tag.name }}</span>
+        <mat-icon *ngIf="videoTagIds.includes(tag.id)" class="tag-check">check_circle</mat-icon>
+      </div>
+      <div *ngIf="!projectTags.length" class="empty-tags">
+        <span>No tags available. Create tags first from the tag manager.</span>
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <button mat-button (click)="showVideoTagDialog = false">Cancel</button>
+      <button mat-raised-button class="primary-btn" (click)="saveVideoTags()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Annotator Assignment Dialog -->
+<div class="dialog-overlay" *ngIf="showAnnotatorDialog" (click)="showAnnotatorDialog = false">
+  <div class="dialog-card" (click)="$event.stopPropagation()">
+    <h2>Assign Annotators</h2>
+    <p class="dialog-subtitle">{{ annotatorVideo?.original_name }}</p>
+    <mat-form-field appearance="outline">
+      <mat-label>Annotators</mat-label>
+      <mat-select [(ngModel)]="annotatorVideoIds" multiple>
+        <mat-option *ngFor="let u of allUsers" [value]="u.id">
+          {{ u.full_name || u.username }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+    <div class="dialog-actions">
+      <button mat-button (click)="showAnnotatorDialog = false">Cancel</button>
+      <button mat-raised-button class="primary-btn" (click)="saveAnnotators()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Review Reject Dialog -->
+<div class="dialog-overlay" *ngIf="showRejectDialog" (click)="showRejectDialog = false">
+  <div class="dialog-card" (click)="$event.stopPropagation()">
+    <h2>Reject Video</h2>
+    <p class="dialog-subtitle">{{ rejectingVideo?.original_name }}</p>
+    <mat-form-field appearance="outline">
+      <mat-label>Reason / Comment</mat-label>
+      <textarea matInput [(ngModel)]="rejectComment" rows="4"
+                placeholder="Describe what needs to be fixed..."></textarea>
+    </mat-form-field>
+    <div class="dialog-actions">
+      <button mat-button (click)="showRejectDialog = false">Cancel</button>
+      <button mat-raised-button class="reject-btn" (click)="confirmReject()">
+        <mat-icon>cancel</mat-icon> Reject
+      </button>
+    </div>
+  </div>
+</div>
