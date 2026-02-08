@@ -1466,6 +1466,7 @@
   color: #94a3b8;
   border: 1px solid transparent;
   transition: all 0.15s;
+  line-height: 1;
 
   &:hover {
     background: rgba(255, 255, 255, 0.04);
@@ -1479,10 +1480,19 @@
   }
 }
 
+.right-group {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .has-caption-icon {
   font-size: 16px;
   color: #10b981;
   flex-shrink: 0;
+  vertical-align: middle;
+  align-self: center;
 }
 
 .region-cat-badge {
@@ -1493,7 +1503,8 @@
   color: #60a5fa;
   font-weight: 500;
   white-space: nowrap;
-  margin-left: auto;
+  vertical-align: middle;
+  align-self: center;
 }
 
 .no-regions {

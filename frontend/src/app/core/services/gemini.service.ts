@@ -3,6 +3,37 @@ import { SettingsService } from './settings.service';
 
 @Injectable({ providedIn: 'root' })
 export class GeminiService {
+    /**
+     * Combine captions using Gemini API and custom prompt
+     */
+    async combineCaptions(captions: string[], isVi: boolean = false): Promise<string> {
+      const settings = this.settingsService.get();
+      if (!settings.gemini_api_key) {
+        throw new Error('Gemini API key not configured. Open Settings to add your key.');
+      }
+      const promptTemplate = settings.gemini_combine_prompt || 'Combine the following captions into a single, coherent description. Only return the combined text, nothing else.\n\nCaptions: {{captions}}';
+      const prompt = promptTemplate.replace(/\{\{captions\}\}/g, captions.join('\n'));
+      const url = `${this.API_BASE}/${settings.gemini_model}:generateContent?key=${settings.gemini_api_key}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 2048,
+          }
+        })
+      });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        const msg = errBody?.error?.message || response.statusText;
+        throw new Error(`Gemini API error: ${msg}`);
+      }
+      const data = await response.json();
+      const result = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      return result.trim();
+    }
   private readonly API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
   constructor(private settingsService: SettingsService) {}

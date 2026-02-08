@@ -75,6 +75,11 @@ import { SettingsService, AppSettings } from '../../core/services/settings.servi
                 <mat-option value="gemini-1.5-pro">Gemini 1.5 Pro</mat-option>
               </mat-select>
             </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Gemini Combine Prompt</mat-label>
+              <textarea matInput [(ngModel)]="form.gemini_combine_prompt" rows="5" cdkTextareaAutosize></textarea>
+            </mat-form-field>
           </div>
         </mat-tab>
 

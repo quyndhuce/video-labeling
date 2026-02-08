@@ -817,8 +817,10 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption, Category } from '../../
                     (click)="selectRegionForCaption(region)">
                     <div class="region-color-dot" [style.background]="region.color"></div>
                     <span>{{ region.label }}</span>
-                    <span *ngIf="region.category_name" class="region-cat-badge">{{ region.category_name }}</span>
-                    <mat-icon *ngIf="region.caption" class="has-caption-icon">check_circle</mat-icon>
+                    <div class="right-group">
+                      <span *ngIf="region.category_name" class="region-cat-badge">{{ region.category_name }}</span>
+                      <mat-icon *ngIf="region.caption" class="has-caption-icon">check_circle</mat-icon>
+                    </div>
                   </div>
                   <div *ngIf="regions.length === 0" class="no-regions">
                     No regions in this segment
@@ -2178,12 +2180,20 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     const parts: string[] = [];
     if (d.contextual_caption) parts.push(d.contextual_caption);
     if (d.knowledge_caption) parts.push(d.knowledge_caption);
-    d.combined_caption = parts.join('. ');
+    this.geminiService.combineCaptions(parts, false).then(result => {
+      d.combined_caption = result;
+    }).catch(() => {
+      d.combined_caption = parts.join('. ');
+    });
 
     const partsVi: string[] = [];
     if (d.contextual_caption_vi) partsVi.push(d.contextual_caption_vi);
     if (d.knowledge_caption_vi) partsVi.push(d.knowledge_caption_vi);
-    d.combined_caption_vi = partsVi.join('. ');
+    this.geminiService.combineCaptions(partsVi, true).then(result => {
+      d.combined_caption_vi = result;
+    }).catch(() => {
+      d.combined_caption_vi = partsVi.join('. ');
+    });
   }
 
   /** Auto combine + translate combined caption via Gemini */
@@ -2256,12 +2266,20 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     const parts: string[] = [];
     if (d.visual_caption) parts.push(d.visual_caption);
     if (d.knowledge_caption) parts.push(d.knowledge_caption);
-    d.combined_caption = parts.join('. ');
+    this.geminiService.combineCaptions(parts, false).then(result => {
+      d.combined_caption = result;
+    }).catch(() => {
+      d.combined_caption = parts.join('. ');
+    });
 
     const partsVi: string[] = [];
     if (d.visual_caption_vi) partsVi.push(d.visual_caption_vi);
     if (d.knowledge_caption_vi) partsVi.push(d.knowledge_caption_vi);
-    d.combined_caption_vi = partsVi.join('. ');
+    this.geminiService.combineCaptions(partsVi, true).then(result => {
+      d.combined_caption_vi = result;
+    }).catch(() => {
+      d.combined_caption_vi = partsVi.join('. ');
+    });
   }
 
   /** Auto combine region captions + translate via Gemini */

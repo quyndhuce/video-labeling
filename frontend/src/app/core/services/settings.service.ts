@@ -8,6 +8,7 @@ export interface AppSettings {
   translate_prompt_en_to_vi: string;
   translate_prompt_vi_to_en: string;
   dam_server_url: string;
+  gemini_combine_prompt: string;
 }
 
 const STORAGE_KEY = 'annotator_settings';
@@ -20,6 +21,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   translate_prompt_vi_to_en:
     'Translate the following Vietnamese text to English. Keep technical terms as-is. Only return the translated text, nothing else.\n\nText: {{text}}',
   dam_server_url: '',
+  gemini_combine_prompt:
+    'Combine the following captions into a single, coherent description. Only return the combined text, nothing else.\n\nCaptions: {{captions}}',
 };
 
 @Injectable({ providedIn: 'root' })
