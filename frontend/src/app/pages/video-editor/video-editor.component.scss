@@ -824,6 +824,9 @@
 .mini-segments {
   padding: 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  max-height: 400px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .mini-seg {
