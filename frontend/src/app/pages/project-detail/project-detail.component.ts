@@ -37,11 +37,15 @@ import { Project, SubPart, VideoItem, User, Tag } from '../../core/models';
   styleUrls: ['./project-detail.component.scss']
 })
 export class ProjectDetailComponent implements OnInit {
+  Math = Math;
   project: Project | null = null;
   subpartVideos: VideoItem[] = [];
   allUsers: User[] = [];
   uploading = false;
   loadingVideos = false;
+  uploadProgress = 0;
+  uploadCurrentFile = '';
+  uploadTotalFiles = 0;
   showSubpartDialog = false;
   newSubpartName = '';
   newSubpartDesc = '';
@@ -219,10 +223,17 @@ export class ProjectDetailComponent implements OnInit {
         this.newSubpartDesc = '';
         this.selectedUsers = [];
         this.selectedReviewer = '';
-        this.loadProject(this.project!.id);
+        
+        // Just reload the project subparts list, keep current view (stay on subparts list)
+        this.projectService.getProject(this.project!.id).subscribe({
+          next: (p) => {
+            this.project = p;
+            this.loadProjectTags(p.id);
+            // Don't auto-select, stay on the subparts view
+          }
+        });
+        
         this.snackBar.open('Sub part created!', 'Close', { duration: 2000, panelClass: 'snack-success' });
-        // Navigate to the new subpart's video list
-        this.selectSubpart(newSubpart as SubPart);
       }
     });
   }
@@ -231,7 +242,18 @@ export class ProjectDetailComponent implements OnInit {
     if (!this.project || !confirm(`Delete "${sp.name}"? All videos in this sub part will be unlinked.`)) return;
     this.projectService.deleteSubpart(this.project.id, sp.id).subscribe({
       next: () => {
-        this.loadProject(this.project!.id);
+        // If we're viewing the deleted subpart, go back to subparts list
+        if (this.selectedSubpart?.id === sp.id) {
+          this.selectedSubpart = null;
+          this.subpartVideos = [];
+        }
+        // Reload project to update subparts list
+        this.projectService.getProject(this.project!.id).subscribe({
+          next: (p) => {
+            this.project = p;
+            this.loadProjectTags(p.id);
+          }
+        });
         this.snackBar.open('Sub part deleted', 'Close', { duration: 2000, panelClass: 'snack-success' });
       }
     });
@@ -247,24 +269,54 @@ export class ProjectDetailComponent implements OnInit {
     if (!input.files?.length || !this.project || !this.selectedSubpart) return;
 
     this.uploading = true;
-    const file = input.files[0];
+    const files = Array.from(input.files);
+    this.uploadTotalFiles = files.length;
+    let uploadedCount = 0;
+    let failedCount = 0;
 
-    // Generate thumbnail from video
-    this.generateThumbnail(file).then((thumbnail) => {
-      this.videoService.uploadVideo(this.project!.id, file, this.selectedSubpart!.id, undefined, thumbnail).subscribe({
-        next: () => {
-          this.uploading = false;
-          this.loadSubpartVideos(this.selectedSubpart!.id);
-          this.loadProject(this.project!.id);
-          this.snackBar.open('Video uploaded!', 'Close', { duration: 2000, panelClass: 'snack-success' });
-          input.value = '';
-        },
-        error: () => {
-          this.uploading = false;
-          this.snackBar.open('Upload failed', 'Close', { duration: 3000, panelClass: 'snack-error' });
+    // Upload each file sequentially
+    const uploadNext = (index: number) => {
+      if (index >= files.length) {
+        this.uploading = false;
+        this.uploadProgress = 0;
+        this.uploadCurrentFile = '';
+        this.uploadTotalFiles = 0;
+        
+        // Reload only current subpart videos, don't navigate
+        this.loadSubpartVideos(this.selectedSubpart!.id);
+        input.value = '';
+        
+        if (uploadedCount > 0 && failedCount === 0) {
+          this.snackBar.open(`${uploadedCount} video${uploadedCount > 1 ? 's' : ''} uploaded!`, 'Close', { duration: 2000, panelClass: 'snack-success' });
+        } else if (uploadedCount > 0 && failedCount > 0) {
+          this.snackBar.open(`Uploaded ${uploadedCount}, failed ${failedCount}`, 'Close', { duration: 3000, panelClass: 'snack-warn' });
+        } else if (failedCount > 0) {
+          this.snackBar.open(`Upload failed for ${failedCount} file${failedCount > 1 ? 's' : ''}`, 'Close', { duration: 3000, panelClass: 'snack-error' });
         }
+        return;
+      }
+
+      const file = files[index];
+      this.uploadCurrentFile = file.name;
+      this.uploadProgress = Math.round(((index) / files.length) * 100);
+
+      this.generateThumbnail(file).then((thumbnail) => {
+        this.videoService.uploadVideo(this.project!.id, file, this.selectedSubpart!.id, undefined, thumbnail).subscribe({
+          next: () => {
+            uploadedCount++;
+            this.uploadProgress = Math.round(((index + 1) / files.length) * 100);
+            uploadNext(index + 1);
+          },
+          error: () => {
+            failedCount++;
+            this.uploadProgress = Math.round(((index + 1) / files.length) * 100);
+            uploadNext(index + 1);
+          }
+        });
       });
-    });
+    };
+
+    uploadNext(0);
   }
 
   generateThumbnail(file: File): Promise<Blob | undefined> {
@@ -421,7 +473,17 @@ export class ProjectDetailComponent implements OnInit {
     } as any).subscribe({
       next: () => {
         this.showEditSubpartDialog = false;
-        this.loadProject(this.project!.id);
+        // Reload project to update subparts list
+        this.projectService.getProject(this.project!.id).subscribe({
+          next: (p) => {
+            this.project = p;
+            this.loadProjectTags(p.id);
+            // If currently viewing this subpart, reload its videos
+            if (this.selectedSubpart?.id === this.editSubpartId) {
+              this.loadSubpartVideos(this.editSubpartId);
+            }
+          }
+        });
         this.snackBar.open('Sub part updated!', 'Close', { duration: 2000, panelClass: 'snack-success' });
       }
     });

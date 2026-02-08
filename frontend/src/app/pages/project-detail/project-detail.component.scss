@@ -134,10 +134,31 @@
 .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
 
 .upload-progress {
-  display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;
-  padding: 12px; background: rgba(59,130,246,0.1); border-radius: 10px;
+  display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;
+  padding: 16px; background: rgba(59,130,246,0.1); border-radius: 10px;
+  border: 1px solid rgba(59,130,246,0.3);
 }
-.upload-progress span { color: #94a3b8; font-size: 13px; }
+
+.progress-content {
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+.progress-info {
+  display: flex; flex-direction: column; gap: 4px;
+}
+
+.progress-text {
+  color: #f1f5f9; font-size: 13px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.progress-count {
+  color: #94a3b8; font-size: 12px;
+}
+
+::ng-deep .upload-progress .mat-mdc-progress-bar {
+  border-radius: 4px !important;
+}
 
 /* Videos Grid */
 .videos-grid {

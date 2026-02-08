@@ -185,8 +185,13 @@
 
     <!-- Upload Progress -->
     <div *ngIf="uploading" class="upload-progress">
-      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-      <span>Uploading video...</span>
+      <div class="progress-content">
+        <div class="progress-info">
+          <span class="progress-text">Uploading: {{ uploadCurrentFile }}</span>
+          <span class="progress-count">{{ uploadProgress }}% ({{ Math.round(uploadProgress / 100 * uploadTotalFiles) }}/{{ uploadTotalFiles }})</span>
+        </div>
+        <mat-progress-bar mode="determinate" [value]="uploadProgress"></mat-progress-bar>
+      </div>
     </div>
 
     <!-- Stats Summary -->
