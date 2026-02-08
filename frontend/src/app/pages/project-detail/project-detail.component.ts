@@ -1376,16 +1376,13 @@ export class ProjectDetailComponent implements OnInit {
   }
 
   getAnnotationProgress(video: VideoItem): number {
-    const steps = 3;
-    let progress = 0;
-    if ((video.segments_count || 0) > 0) progress += 1;
-    if ((video.objects_count || 0) > 0) progress += 1;
-    if ((video.objects_count || 0) > 0 && (video.captions_count || 0) >= (video.objects_count || 0)) {
-      progress += 1;
-    } else if ((video.captions_count || 0) > 0) {
-      progress += 0.5;
-    }
-    return Math.round((progress / steps) * 100);
+    // If no segments or objects, progress is 0
+    if (!video.segments_count || !video.objects_count) return 0;
+    // If objects but no captions, 50%
+    if (!video.captions_count || video.captions_count === 0) return 50;
+    // If objects and captions, percent = (captions_count / objects_count) * 100, max 100
+    const percent = Math.min(100, Math.round((video.captions_count / video.objects_count) * 100));
+    return percent;
   }
 
   getCaptionTooltip(video: VideoItem): string {
