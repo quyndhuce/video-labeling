@@ -165,7 +165,7 @@ def get_project_videos(project_id):
 @token_required
 def get_subpart_videos(subpart_id):
     try:
-        videos = list(current_app.db.videos.find({'subpart_id': ObjectId(subpart_id)}))
+        videos = list(current_app.db.videos.find({'subpart_id': ObjectId(subpart_id)}).sort('created_at', -1))
     except Exception:
         return jsonify({'error': 'Invalid subpart ID'}), 400
 

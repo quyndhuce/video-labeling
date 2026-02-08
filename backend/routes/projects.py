@@ -109,8 +109,8 @@ def get_project(project_id):
 
     proj_data = serialize_project(project)
 
-    # Get subparts with user details
-    subparts = list(current_app.db.subparts.find({'project_id': ObjectId(project_id)}).sort('order', 1))
+    # Get subparts with user details (sorted by created_at descending - newest first)
+    subparts = list(current_app.db.subparts.find({'project_id': ObjectId(project_id)}).sort('created_at', -1))
     proj_data['subparts'] = []
     for sp in subparts:
         sp_data = serialize_subpart(sp)
