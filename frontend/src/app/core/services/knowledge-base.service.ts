@@ -19,7 +19,10 @@ export interface KBNode {
   created_at: string;
   updated_at: string;
   children?: KBNode[];
-  // For hierarchical display
+  related_ids?: KBNode[];
+  region: string,
+  // For hierarchical 
+  confidence_level: string,
   level?: number;
   path?: string;
 }

@@ -19,8 +19,7 @@ import { MatTreeModule } from '@angular/material/tree';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { KnowledgeBaseService, KBNode } from '../../core/services/knowledge-base.service';
 import { KBNodeDialogComponent } from './kb-node-dialog.component';
-import { AppNavbarComponent } from '../../core/components/app-navbar.component';
-
+ 
 @Component({
   selector: 'app-knowledge-base',
   standalone: true,
@@ -29,7 +28,7 @@ import { AppNavbarComponent } from '../../core/components/app-navbar.component';
     MatButtonModule, MatIconModule, MatInputModule, MatSelectModule, MatOptionModule,
     MatFormFieldModule, MatSnackBarModule, MatMenuModule, MatChipsModule,
     MatProgressSpinnerModule, MatTooltipModule, MatTabsModule, MatDialogModule,
-    MatTreeModule, MatExpansionModule, KBNodeDialogComponent, AppNavbarComponent
+    MatTreeModule, MatExpansionModule, KBNodeDialogComponent
   ],
   templateUrl: './knowledge-base.component.html',
   styleUrls: ['./knowledge-base.component.scss']
@@ -118,6 +117,15 @@ export class KnowledgeBaseComponent implements OnInit {
 
   selectNode(node: KBNode): void {
     this.selectedNode = node;
+  }
+
+  /** Handle clicking on a node - select it and toggle expand/collapse */
+  onNodeClick(node: KBNode): void {
+    this.selectedNode = node;
+    // Auto toggle expand/collapse if node has children
+    if (node.children && node.children.length > 0) {
+      this.toggleNode(node);
+    }
   }
 
   createNode(): void {

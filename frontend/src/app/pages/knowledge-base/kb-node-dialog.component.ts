@@ -22,26 +22,29 @@ import { KnowledgeBaseService, KBNode } from '../../core/services/knowledge-base
   templateUrl: './kb-node-dialog.component.html',
   styleUrls: ['./kb-node-dialog.component.scss']
 })
-export class KbNodeDialogComponent {
+export class KBNodeDialogComponent {
   node: Partial<KBNode> = {
     name: '',
+    name_vi: '',
     type: 'object',
     description: '',
+    description_vi: '',
     visual_cues: '',
+    visual_cues_vi: '',
     tags: [],
     region: '',
-    confidence_level: 'optional'
+    confidence_level: 'optional',
+    related_ids: []
   };
 
   types = ['action', 'object', 'concept', 'ritual', 'festival'];
-  regions = ['global', 'asia', 'europe', 'america', 'africa', 'oceania'];
   confidenceLevels = ['core', 'optional', 'inferred'];
 
   newTag = '';
   availableNodes: KBNode[] = [];
 
   constructor(
-    private dialogRef: MatDialogRef<KbNodeDialogComponent>,
+    private dialogRef: MatDialogRef<KBNodeDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: { node?: KBNode; parentId?: string },
     private kbService: KnowledgeBaseService,
     private snackBar: MatSnackBar

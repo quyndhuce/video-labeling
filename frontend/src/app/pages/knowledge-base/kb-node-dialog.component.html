@@ -1,0 +1,136 @@
+<h2 mat-dialog-title>{{ data.node ? 'Edit' : 'Create' }} Knowledge Node</h2>
+
+<mat-dialog-content>
+  <div class="dialog-form">
+    <!-- Name -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Name</mat-label>
+      <input matInput [(ngModel)]="node.name" placeholder="Enter node name" required>
+    </mat-form-field>
+
+    <!-- Name VI -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Name (Vietnamese)</mat-label>
+      <input matInput [(ngModel)]="node.name_vi" placeholder="Nhập tên tiếng Việt">
+    </mat-form-field>
+
+    <!-- Type -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Type</mat-label>
+      <mat-select [(ngModel)]="node.type" required>
+        <mat-option *ngFor="let type of types" [value]="type">
+          {{ type | titlecase }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <!-- Parent -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Parent Node</mat-label>
+      <mat-select [(ngModel)]="node.parent_id">
+        <mat-option [value]="null">None (Root Node)</mat-option>
+        <mat-option *ngFor="let n of availableNodes" [value]="n.id">
+          {{ getNodeDisplayName(n) }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <!-- Description EN -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Description (English)</mat-label>
+      <textarea matInput [(ngModel)]="node.description" 
+        placeholder="Enter description in English" 
+        rows="10"
+        class="large-textarea"></textarea>
+    </mat-form-field>
+
+    <!-- Description VI -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Description (Vietnamese)</mat-label>
+      <textarea matInput [(ngModel)]="node.description_vi" 
+        placeholder="Nhập mô tả tiếng Việt" 
+        rows="10"
+        class="large-textarea"></textarea>
+    </mat-form-field>
+
+    <!-- Visual Cues EN -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Visual Cues (English)</mat-label>
+      <textarea matInput [(ngModel)]="node.visual_cues" 
+        placeholder="Enter visual characteristics for identification" 
+        rows="10"
+        class="large-textarea"></textarea>
+    </mat-form-field>
+
+    <!-- Visual Cues VI -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Visual Cues (Vietnamese)</mat-label>
+      <textarea matInput [(ngModel)]="node.visual_cues_vi" 
+        placeholder="Nhập đặc điểm thị giác để nhận dạng" 
+        rows="10"
+        class="large-textarea"></textarea>
+    </mat-form-field>
+
+    <!-- Region -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Region</mat-label>
+      <mat-select [(ngModel)]="node.region">
+        <mat-option [value]="''">Not specified</mat-option>
+        <mat-option *ngFor="let region of regions" [value]="region">
+          {{ region | titlecase }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <!-- Confidence Level -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Confidence Level</mat-label>
+      <mat-select [(ngModel)]="node.confidence_level">
+        <mat-option *ngFor="let level of confidenceLevels" [value]="level">
+          {{ level | titlecase }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <!-- Tags -->
+    <div class="tags-section">
+      <label>Tags</label>
+      <div class="tags-input">
+        <mat-form-field appearance="outline" class="tag-input">
+          <mat-label>Add tag</mat-label>
+          <input matInput [(ngModel)]="newTag" (keyup.enter)="addTag()" placeholder="Enter tag">
+        </mat-form-field>
+        <button mat-icon-button color="primary" (click)="addTag()" [disabled]="!newTag.trim()">
+          <mat-icon>add_circle</mat-icon>
+        </button>
+      </div>
+      <div class="tags-list" *ngIf="node.tags?.length">
+        <mat-chip-set>
+          <mat-chip *ngFor="let tag of node.tags" (removed)="removeTag(tag)">
+            {{ tag }}
+            <button matChipRemove>
+              <mat-icon>cancel</mat-icon>
+            </button>
+          </mat-chip>
+        </mat-chip-set>
+      </div>
+    </div>
+
+    <!-- Related Nodes -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Related Nodes</mat-label>
+      <mat-select [(ngModel)]="node.related_ids" multiple>
+        <mat-option *ngFor="let n of availableNodes" [value]="n.id">
+          {{ getNodeDisplayName(n) }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="onCancel()">Cancel</button>
+  <button mat-raised-button color="primary" (click)="onSave()" [disabled]="!node.name || !node.type">
+    {{ data.node ? 'Update' : 'Create' }}
+  </button>
+</mat-dialog-actions>

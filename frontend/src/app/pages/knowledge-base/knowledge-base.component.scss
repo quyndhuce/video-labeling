@@ -199,47 +199,52 @@
       border-color: rgba(59, 130, 246, 0.3);
     }
 
-    &.has-children {
-      .expand-btn {
-        opacity: 1;
-      }
-    }
-
     .expand-btn {
-      width: 32px;
-      height: 32px;
-      min-width: 32px;
-      padding: 4px;
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      padding: 0;
       margin-right: 4px;
       color: #94a3b8;
-      opacity: 0;
-      transition: opacity 0.2s, color 0.2s;
+      opacity: 1;
+      transition: all 0.2s;
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
-      border-radius: 6px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
 
       &:hover {
-        background: rgba(59, 130, 246, 0.1);
+        background: rgba(59, 130, 246, 0.15);
+        border-color: rgba(59, 130, 246, 0.3);
         color: #3b82f6;
       }
 
       &.expanded {
         color: #3b82f6;
+        background: rgba(59, 130, 246, 0.1);
       }
 
       mat-icon {
-        width: 20px;
-        height: 20px;
-        font-size: 20px;
-        line-height: 20px;
+        width: 18px;
+        height: 18px;
+        font-size: 18px;
+        line-height: 18px;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
     }
 
     .expand-spacer {
-      width: 0;
-      display: none;
+      width: 28px;
+      min-width: 28px;
+      height: 28px;
+      margin-right: 4px;
+      flex-shrink: 0;
     }
 
     .type-badge {

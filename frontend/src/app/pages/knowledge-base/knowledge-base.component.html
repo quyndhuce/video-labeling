@@ -200,7 +200,7 @@
         <mat-icon [style.color]="'white'" style="font-size: 12px; width: 12px; height: 12px;">●</mat-icon>
       </div>
 
-      <div class="node-info" (click)="selectNode(node)">
+      <div class="node-info" (click)="onNodeClick(node)">
         <span class="node-name">{{ node.name }}</span>
         <span class="kb-id">{{ node.kb_id }}</span>
         <mat-chip>{{ node.type | titlecase }}</mat-chip>
