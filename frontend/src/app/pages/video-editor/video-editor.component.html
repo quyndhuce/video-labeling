@@ -58,14 +58,33 @@
     <!-- Reviewer -->
     <div class="reviewer-info" *ngIf="video.reviewer_details">
       <mat-icon>verified_user</mat-icon>
-      <span class="info-label">Reviewer:</span>
-      <div class="annotator-chip" [style.background]="video.reviewer_details.avatar_color || '#e8590c'">
-        <span class="chip-avatar">{{ video.reviewer_details.full_name?.charAt(0) || video.reviewer_details.username?.charAt(0) }}</span>
-        <span class="chip-name">{{ video.reviewer_details.full_name || video.reviewer_details.username }}</span>
-      </div>
+      <span class="info-label">Reviewers:</span>
+      <ng-container *ngIf="video.reviewer_details_list?.length; else singleReviewer">
+        <div class="annotator-chip" *ngFor="let reviewer of video.reviewer_details_list"
+             [style.background]="reviewer.avatar_color || '#e8590c'">
+          <span class="chip-avatar">{{ reviewer.full_name?.charAt(0) || reviewer.username?.charAt(0) }}</span>
+          <span class="chip-name">{{ reviewer.full_name || reviewer.username }}</span>
+          <!-- Show review status icon if they have reviewed -->
+          <mat-icon *ngIf="getReviewerAction(reviewer.id) === 'approve'" 
+                    class="review-icon approve">check_circle</mat-icon>
+          <mat-icon *ngIf="getReviewerAction(reviewer.id) === 'reject'" 
+                    class="review-icon reject">cancel</mat-icon>
+        </div>
+      </ng-container>
+      <ng-template #singleReviewer>
+        <div class="annotator-chip" *ngIf="video.reviewer_details"
+             [style.background]="video.reviewer_details.avatar_color || '#e8590c'">
+          <span class="chip-avatar">{{ video.reviewer_details.full_name?.charAt(0) || video.reviewer_details.username?.charAt(0) }}</span>
+          <span class="chip-name">{{ video.reviewer_details.full_name || video.reviewer_details.username }}</span>
+        </div>
+      </ng-template>
     </div>
   </div>
   <div class="info-bar-right">
+    <!-- Review Summary for multi-reviewer -->
+    <span class="ed-review-summary" *ngIf="video.reviews?.length">
+      {{ getReviewSummary() }}
+    </span>
     <!-- Review Status -->
     <span class="ed-review-badge" [class]="video.review_status || 'not_submitted'">
       <mat-icon>{{ getReviewIcon(video.review_status) }}</mat-icon>
@@ -76,15 +95,27 @@
             (click)="submitForReview()">
       <mat-icon>send</mat-icon> Submit for Review
     </button>
-    <!-- Reviewer: Approve / Reject -->
+    <!-- Reviewer: Approve / Reject / Change Vote -->
     <ng-container *ngIf="canReview()">
-      <button mat-stroked-button class="ed-approve-btn" (click)="approveVideo()">
-        <mat-icon>check_circle</mat-icon> Approve
+      <span *ngIf="hasUserReviewed()" class="ed-your-vote">
+        Your vote: <strong>{{ getUserReview()?.action === 'approve' ? 'Approved' : 'Rejected' }}</strong>
+      </span>
+      <button mat-stroked-button class="ed-approve-btn" (click)="approveVideo()"
+              [class.active]="getUserReview()?.action === 'approve'">
+        <mat-icon>check_circle</mat-icon> {{ hasUserReviewed() ? 'Change to Approve' : 'Approve' }}
       </button>
-      <button mat-stroked-button class="ed-reject-btn" (click)="showEditorRejectDialog = true">
-        <mat-icon>cancel</mat-icon> Reject
+      <button mat-stroked-button class="ed-reject-btn" (click)="showEditorRejectDialog = true"
+              [class.active]="getUserReview()?.action === 'reject'">
+        <mat-icon>cancel</mat-icon> {{ hasUserReviewed() ? 'Change to Reject' : 'Reject' }}
+      </button>
+      <button *ngIf="canWithdrawReview()" mat-stroked-button class="ed-withdraw-btn" (click)="withdrawReview()">
+        <mat-icon>undo</mat-icon> Withdraw
       </button>
     </ng-container>
+    <!-- Revoke Approval (admin/reviewer) -->
+    <button *ngIf="canRevokeApproval()" mat-stroked-button class="ed-revoke-btn" (click)="revokeApproval()">
+      <mat-icon>replay</mat-icon> Revoke Approval
+    </button>
   </div>
 </div>
 <!-- Review Comment Banner -->
@@ -470,33 +501,20 @@
               <div class="level-header">
                 <div class="level-badge knowledge">L3</div>
                 <div>
-                  <h4>Knowledge Caption</h4>
-                  <p>Domain knowledge about the scene</p>
+                  <h4>Related Knowledge</h4>
+                  <p>Select knowledge from Knowledge Base</p>
                 </div>
               </div>
-              <div class="bilingual-fields">
-                <div class="lang-field">
-                  <span class="lang-label">🇬🇧 EN</span>
-                  <mat-form-field appearance="outline">
-                    <textarea matInput [(ngModel)]="segmentCaptionData.knowledge_caption" rows="3"
-                      placeholder="e.g., This intersection follows standard traffic light patterns with a 30-second cycle"></textarea>
-                  </mat-form-field>
-                  <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
-                          (click)="translateField('knowledge_caption', 'en_to_vi', 'segment')" [disabled]="translating">
-                    <mat-icon>south</mat-icon>
-                  </button>
-                </div>
-                <div class="lang-field">
-                  <span class="lang-label">🇻🇳 VI</span>
-                  <mat-form-field appearance="outline">
-                    <textarea matInput [(ngModel)]="segmentCaptionData.knowledge_caption_vi" rows="3"
-                      placeholder="VD: Ngã tư này tuân theo mô hình đèn giao thông tiêu chuẩn với chu kỳ 30 giây"></textarea>
-                  </mat-form-field>
-                  <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
-                          (click)="translateField('knowledge_caption', 'vi_to_en', 'segment')" [disabled]="translating">
-                    <mat-icon>north</mat-icon>
-                  </button>
-                </div>
+              <!-- Knowledge Base Selector -->
+              <div class="kb-selector-row">
+                <app-knowledge-base-selector
+                  label="Related Knowledge"
+                  placeholder="Search knowledge base..."
+                  [(ngModel)]="segmentCaptionKBIds"
+                  [multiple]="true"
+                  [showQuickAdd]="true"
+                  (selectionChange)="onSegmentKBSelectionChange($event)">
+                </app-knowledge-base-selector>
               </div>
             </div>
 
@@ -534,14 +552,12 @@
                 </div>
               </div>
               <div class="combine-actions">
-                <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineCaptions()">
-                  <mat-icon>auto_awesome</mat-icon> Auto Combine
-                </button>
                 <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineAndTranslate()"
-                        [disabled]="translating">
+                        [disabled]="translating || !canCombineSegmentCaptions()"
+                        [matTooltip]="getSegmentCombineTooltip()">
                   <mat-spinner *ngIf="translating" diameter="16"></mat-spinner>
-                  <mat-icon *ngIf="!translating">translate</mat-icon>
-                  {{ translating ? 'Translating...' : 'Combine & Translate' }}
+                  <mat-icon *ngIf="!translating">auto_awesome</mat-icon>
+                  {{ translating ? 'Processing...' : 'Auto Combine & Translate' }}
                 </button>
               </div>
             </div>
@@ -562,47 +578,65 @@
                 Captioning: <span [style.color]="selectedRegion.color">{{ selectedRegion.label }}</span>
                 in {{ selectedSegment?.name }}
               </h3>
-              <div class="cat-inline-select">
-                <select class="cat-mini-select" [ngModel]="selectedRegion!.category_id || ''"
-                        (ngModelChange)="onCategoryChange($event || null)">
-                  <option value="">No category</option>
-                  <option *ngFor="let cat of categories" [value]="cat.id">
-                    {{ cat.name }}
-                  </option>
-                </select>
-                <span *ngIf="selectedRegion?.category_id" class="cat-mini-dot" [style.background]="getCategoryColor(selectedRegion?.category_id)"></span>
-                <button class="cat-manage-toggle" matTooltip="Manage Categories"
-                        (click)="showCategoryManager = !showCategoryManager">
-                  <mat-icon>{{ showCategoryManager ? 'close' : 'tune' }}</mat-icon>
+              <!-- Professional Category Selector -->
+              <div class="category-dropdown-container">
+                <button class="category-dropdown-trigger" (click)="showCategoryDropdown = !showCategoryDropdown"
+                        [class.has-category]="selectedRegion?.category_id">
+                  <span class="cat-color-indicator" *ngIf="selectedRegion?.category_id" 
+                        [style.background]="getCategoryColor(selectedRegion?.category_id)"></span>
+                  <span class="cat-label">{{ selectedRegion?.category_name || 'No category' }}</span>
+                  <mat-icon class="dropdown-arrow">{{ showCategoryDropdown ? 'expand_less' : 'expand_more' }}</mat-icon>
                 </button>
+                
+                <!-- Category Dropdown Panel -->
+                <div class="category-dropdown-panel" *ngIf="showCategoryDropdown" (click)="$event.stopPropagation()">
+                  <div class="cat-dropdown-header">
+                    <span>Select Category</span>
+                    <button class="cat-dropdown-close" (click)="showCategoryDropdown = false">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
+                  
+                  <!-- Category List -->
+                  <div class="cat-dropdown-list">
+                    <div class="cat-dropdown-item" [class.active]="!selectedRegion?.category_id"
+                         (click)="onCategoryChange(null); showCategoryDropdown = false">
+                      <span class="cat-color-dot" style="background: #666"></span>
+                      <span class="cat-item-name">No category</span>
+                      <mat-icon *ngIf="!selectedRegion?.category_id" class="cat-check">check</mat-icon>
+                    </div>
+                    <div class="cat-dropdown-item" *ngFor="let cat of categories"
+                         [class.active]="selectedRegion?.category_id === cat.id"
+                         (click)="onCategoryChange(cat.id); showCategoryDropdown = false">
+                      <span class="cat-color-dot" [style.background]="cat.color"></span>
+                      <span class="cat-item-name">{{ cat.name }}</span>
+                      <span class="cat-item-desc" *ngIf="cat.description">{{ cat.description }}</span>
+                      <mat-icon *ngIf="selectedRegion?.category_id === cat.id" class="cat-check">check</mat-icon>
+                    </div>
+                  </div>
+                  
+                  <!-- Inline Add New Category -->
+                  <div class="cat-add-inline">
+                    <div class="cat-add-inline-header" (click)="showInlineCategoryAdd = !showInlineCategoryAdd">
+                      <mat-icon>add_circle_outline</mat-icon>
+                      <span>Add new category</span>
+                      <mat-icon class="expand-icon">{{ showInlineCategoryAdd ? 'expand_less' : 'expand_more' }}</mat-icon>
+                    </div>
+                    <div class="cat-add-inline-form" *ngIf="showInlineCategoryAdd">
+                      <div class="cat-add-row">
+                        <input type="color" [(ngModel)]="newCategoryColor" class="cat-inline-color">
+                        <input class="cat-inline-name" [(ngModel)]="newCategoryName" placeholder="Category name..." 
+                               (keyup.enter)="addCategory(); showCategoryDropdown = false">
+                        <button class="cat-inline-add-btn" (click)="addCategory(); showCategoryDropdown = false" 
+                                [disabled]="!newCategoryName.trim()">
+                          <mat-icon>add</mat-icon>
+                        </button>
+                      </div>
+                      <input class="cat-inline-desc" [(ngModel)]="newCategoryDesc" placeholder="Description (optional)...">
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-
-          <!-- Inline Category Manager -->
-          <div class="category-manager" *ngIf="showCategoryManager">
-            <div class="cat-manager-header">
-              <h4>Manage Categories</h4>
-            </div>
-            <div class="cat-list">
-              <div *ngFor="let cat of categories" class="cat-item">
-                <span class="cat-color-dot" [style.background]="cat.color"></span>
-                <span class="cat-name">{{ cat.name }}</span>
-                <span class="cat-desc" *ngIf="cat.description">{{ cat.description }}</span>
-                <button class="cat-delete-btn" matTooltip="Delete" (click)="deleteCategory(cat)">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </div>
-              <div *ngIf="categories.length === 0" class="cat-empty">No categories yet</div>
-            </div>
-            <div class="cat-add-form">
-              <input type="color" [(ngModel)]="newCategoryColor" class="cat-color-picker">
-              <input class="cat-name-input" [(ngModel)]="newCategoryName" placeholder="Category name">
-              <input class="cat-desc-input" [(ngModel)]="newCategoryDesc" placeholder="Description (optional)">
-              <button class="cat-add-btn" matTooltip="Add Category"
-                      (click)="addCategory()" [disabled]="!newCategoryName.trim()">
-                <mat-icon>add_circle</mat-icon>
-              </button>
             </div>
           </div>
 
@@ -669,33 +703,20 @@
               <div class="level-header">
                 <div class="level-badge knowledge">L3</div>
                 <div>
-                  <h4>Knowledge Caption</h4>
-                  <p>Domain knowledge about the object</p>
+                  <h4>Related Knowledge</h4>
+                  <p>Select knowledge from Knowledge Base</p>
                 </div>
               </div>
-              <div class="bilingual-fields">
-                <div class="lang-field">
-                  <span class="lang-label">🇬🇧 EN</span>
-                  <mat-form-field appearance="outline">
-                    <textarea matInput [(ngModel)]="captionData.knowledge_caption" rows="3"
-                      placeholder="e.g., This appears to be a Toyota Camry 2020 model, a popular mid-size sedan"></textarea>
-                  </mat-form-field>
-                  <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
-                          (click)="translateField('knowledge_caption', 'en_to_vi')" [disabled]="translating">
-                    <mat-icon>south</mat-icon>
-                  </button>
-                </div>
-                <div class="lang-field">
-                  <span class="lang-label">🇻🇳 VI</span>
-                  <mat-form-field appearance="outline">
-                    <textarea matInput [(ngModel)]="captionData.knowledge_caption_vi" rows="3"
-                      placeholder="VD: Đây có vẻ là xe Toyota Camry đời 2020, dòng sedan cỡ trung phổ biến"></textarea>
-                  </mat-form-field>
-                  <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
-                          (click)="translateField('knowledge_caption', 'vi_to_en')" [disabled]="translating">
-                    <mat-icon>north</mat-icon>
-                  </button>
-                </div>
+              <!-- Knowledge Base Selector -->
+              <div class="kb-selector-row">
+                <app-knowledge-base-selector
+                  label="Related Knowledge"
+                  placeholder="Search knowledge base..."
+                  [(ngModel)]="captionKBIds"
+                  [multiple]="true"
+                  [showQuickAdd]="true"
+                  (selectionChange)="onRegionKBSelectionChange($event)">
+                </app-knowledge-base-selector>
               </div>
             </div>
 
@@ -733,14 +754,12 @@
                 </div>
               </div>
               <div class="combine-actions">
-                <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineRegionCaptions()">
-                  <mat-icon>auto_awesome</mat-icon> Auto Combine
-                </button>
                 <button mat-stroked-button class="auto-combine-btn" (click)="autoCombineRegionAndTranslate()"
-                        [disabled]="translating">
+                        [disabled]="translating || !canCombineRegionCaptions()"
+                        [matTooltip]="getRegionCombineTooltip()">
                   <mat-spinner *ngIf="translating" diameter="16"></mat-spinner>
-                  <mat-icon *ngIf="!translating">translate</mat-icon>
-                  {{ translating ? 'Translating...' : 'Combine & Translate' }}
+                  <mat-icon *ngIf="!translating">auto_awesome</mat-icon>
+                  {{ translating ? 'Processing...' : 'Auto Combine & Translate' }}
                 </button>
               </div>
             </div>

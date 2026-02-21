@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -24,7 +24,7 @@ import { Project } from '../../core/models';
   selector: 'app-dashboard',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
+    CommonModule, FormsModule, RouterModule,
     MatToolbarModule, MatButtonModule, MatIconModule, MatCardModule,
     MatChipsModule, MatMenuModule, MatDialogModule, MatFormFieldModule,
     MatInputModule, MatSnackBarModule, MatProgressSpinnerModule, MatTooltipModule

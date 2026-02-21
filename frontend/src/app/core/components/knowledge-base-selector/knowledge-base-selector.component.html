@@ -1,0 +1,123 @@
+<div class="kb-selector-container">
+  <label class="selector-label">{{ label }}</label>
+  
+  <!-- Selected Items -->
+  <div class="selected-items" (click)="openDropdown()">
+    @if (selectedNodes.length === 0) {
+      <span class="placeholder">{{ placeholder }}</span>
+    }
+    @for (node of selectedNodes; track node.id) {
+      <div class="selected-chip" [style.borderColor]="getTypeColor(node.type)">
+        <mat-icon [style.color]="getTypeColor(node.type)">{{ getTypeIcon(node.type) }}</mat-icon>
+        <span class="chip-name">{{ node.name }}</span>
+        <mat-icon class="chip-remove" (click)="removeNode(node); $event.stopPropagation()">close</mat-icon>
+      </div>
+    }
+    <input
+      class="search-input"
+      [(ngModel)]="searchQuery"
+      (input)="filterNodes()"
+      (focus)="openDropdown()"
+      (blur)="closeDropdown()"
+      [placeholder]="selectedNodes.length > 0 ? 'Add more...' : ''"
+    >
+    <mat-icon class="dropdown-icon">{{ showDropdown ? 'expand_less' : 'expand_more' }}</mat-icon>
+  </div>
+
+  <!-- Dropdown -->
+  @if (showDropdown) {
+    <div class="dropdown-panel">
+      <!-- Dropdown Header with Close Button -->
+      <div class="dropdown-header">
+        <span class="dropdown-title">Select Knowledge</span>
+        <button class="dropdown-close-btn" (mousedown)="closeDropdown(); $event.preventDefault(); $event.stopPropagation()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <!-- Quick Add Toggle -->
+      @if (showQuickAdd) {
+        <div class="quick-add-toggle" (click)="toggleQuickAdd()">
+          <mat-icon>add_circle</mat-icon>
+          <span>Quick Add New</span>
+        </div>
+      }
+
+      <!-- Quick Add Form -->
+      @if (showQuickAddForm) {
+        <div class="quick-add-form" (click)="$event.stopPropagation()">
+          <input
+            class="quick-add-input"
+            [(ngModel)]="quickAddName"
+            placeholder="Enter name..."
+            (keyup.enter)="quickAdd()"
+            autofocus
+          >
+          <div class="quick-add-types">
+            @for (type of kbTypes; track type.value) {
+              <button
+                class="type-btn"
+                [class.active]="quickAddType === type.value"
+                [style.borderColor]="quickAddType === type.value ? type.color : 'transparent'"
+                (click)="quickAddType = type.value"
+                [matTooltip]="type.label"
+              >
+                <mat-icon [style.color]="type.color">{{ type.icon }}</mat-icon>
+              </button>
+            }
+          </div>
+          <button class="quick-add-btn" (click)="quickAdd()" [disabled]="!quickAddName.trim()">
+            <mat-icon>add</mat-icon>
+            Add
+          </button>
+        </div>
+      }
+
+      <!-- Loading -->
+      @if (loading) {
+        <div class="loading-state">
+          <span>Loading...</span>
+        </div>
+      }
+
+      <!-- Node List -->
+      @if (!loading && filteredNodes.length > 0) {
+        <div class="node-list">
+          @for (node of filteredNodes; track node.id) {
+            <div 
+              class="node-item"
+              [class.selected]="isSelected(node)"
+              (mousedown)="selectNode(node); $event.preventDefault()"
+            >
+              <div class="node-icon" [style.background]="getTypeColor(node.type) + '22'" [style.color]="getTypeColor(node.type)">
+                <mat-icon>{{ getTypeIcon(node.type) }}</mat-icon>
+              </div>
+              <div class="node-content">
+                <span class="node-name">{{ node.name }}</span>
+                @if (node.description) {
+                  <span class="node-desc">{{ node.description }}</span>
+                }
+              </div>
+              @if (isSelected(node)) {
+                <mat-icon class="check-icon">check</mat-icon>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Empty State -->
+      @if (!loading && filteredNodes.length === 0) {
+        <div class="empty-state">
+          <mat-icon>search_off</mat-icon>
+          <span>No matching knowledge found</span>
+          @if (showQuickAdd && searchQuery) {
+            <button class="create-btn" (mousedown)="toggleQuickAdd(); $event.preventDefault()">
+              Create "{{ searchQuery }}"
+            </button>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>

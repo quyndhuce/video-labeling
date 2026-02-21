@@ -162,4 +162,12 @@ export class VideoService {
   reviewVideo(videoId: string, action: 'approve' | 'reject', comment?: string): Observable<any> {
     return this.http.post(`${this.API}/${videoId}/review`, { action, comment });
   }
+
+  revokeApproval(videoId: string, reason?: string): Observable<any> {
+    return this.http.post(`${this.API}/${videoId}/revoke-approval`, { reason });
+  }
+
+  withdrawReview(videoId: string): Observable<any> {
+    return this.http.post(`${this.API}/${videoId}/withdraw-review`, {});
+  }
 }

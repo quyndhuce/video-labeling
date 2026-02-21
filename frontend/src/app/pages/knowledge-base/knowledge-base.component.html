@@ -1,0 +1,228 @@
+<div class="kb-wrapper">
+  <!-- Navbar -->
+  <app-navbar></app-navbar>
+
+  <!-- Main Content -->
+  <div class="kb-container">
+  <!-- Header -->
+  <div class="kb-header">
+    <div>
+      <h1>Knowledge Base Management</h1>
+      <p class="kb-subtitle">Organize and manage your cultural knowledge repository</p>
+    </div>
+    <button mat-raised-button class="primary-btn" (click)="createNode()">
+      <mat-icon>add</mat-icon> Create KB Node
+    </button>
+  </div>
+
+  <!-- Search & Filter Section -->
+  <div class="search-filter-section">
+    <mat-form-field appearance="outline" class="search-input">
+      <mat-label>Search by name, description, or kb_id</mat-label>
+      <input matInput [(ngModel)]="searchQuery" (keyup.enter)="searchNodes()" placeholder="">
+      <mat-icon matSuffix (click)="searchNodes()">search</mat-icon>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Type</mat-label>
+      <mat-select [(ngModel)]="filterType" (selectionChange)="applyFilters()">
+        <mat-option value="">All Types</mat-option>
+        <mat-option *ngFor="let type of nodeTypes" [value]="type">
+          {{ type | titlecase }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Region</mat-label>
+      <mat-select [(ngModel)]="filterRegion" (selectionChange)="applyFilters()">
+        <mat-option value="">All Regions</mat-option>
+        <mat-option *ngFor="let region of regions" [value]="region">
+          {{ region }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <button mat-stroked-button (click)="resetFilters()" class="reset-btn">Reset</button>
+  </div>
+
+  <!-- View Mode Toggle -->
+  <div class="view-mode-toggle">
+    <button mat-icon-button [class.active]="viewMode === 'tree'" (click)="viewMode = 'tree'" matTooltip="Tree View">
+      <mat-icon>account_tree</mat-icon>
+    </button>
+    <button mat-icon-button [class.active]="viewMode === 'list'" (click)="viewMode = 'list'" matTooltip="List View">
+      <mat-icon>list</mat-icon>
+    </button>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading-state">
+    <mat-spinner diameter="36"></mat-spinner>
+    <p>Loading KB data...</p>
+  </div>
+
+  <!-- Tree View -->
+  <div *ngIf="!loading && viewMode === 'tree'" class="tree-view">
+    <div *ngIf="treeNodes.length === 0" class="empty-state">
+      <mat-icon>folder_open</mat-icon>
+      <p>No KB nodes yet. Create one to get started!</p>
+    </div>
+
+    <div *ngFor="let node of treeNodes" class="tree-node">
+      <ng-container *ngTemplateOutlet="nodeTemplate; context: { $implicit: node, level: 0 }"></ng-container>
+    </div>
+  </div>
+
+  <!-- List View -->
+  <div *ngIf="!loading && viewMode === 'list'" class="list-view">
+    <div *ngIf="allNodes.length === 0" class="empty-state">
+      <mat-icon>search_off</mat-icon>
+      <p>No matching KB nodes found.</p>
+    </div>
+
+    <div *ngFor="let node of allNodes" class="list-item" [class.selected]="selectedNode?.id === node.id" (click)="selectNode(node)">
+      <div class="item-header">
+        <div class="type-badge" [style.background]="getTypeColor(node.type)" [style.color]="'white'">
+          {{ node.type | titlecase }}
+        </div>
+        <h4>{{ node.name }}</h4>
+        <span class="confidence-badge" [style.background]="getConfidenceColor(node.confidence_level)">
+          {{ node.confidence_level | titlecase }}
+        </span>
+      </div>
+      <p class="description">{{ node.description }}</p>
+      <div class="item-footer">
+        <span *ngIf="node.region" class="region-tag">📍 {{ node.region }}</span>
+        <div class="tags" *ngIf="node.tags?.length">
+          <mat-chip *ngFor="let tag of node.tags">{{ tag }}</mat-chip>
+        </div>
+      </div>
+      <div class="item-actions">
+        <button mat-icon-button (click)="editNode(node); $event.stopPropagation()" matTooltip="Edit">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button (click)="deleteNode(node); $event.stopPropagation()" matTooltip="Delete">
+          <mat-icon color="warn">delete</mat-icon>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Node Details (when selected) -->
+  <div *ngIf="selectedNode" class="node-details">
+    <div class="details-header">
+      <h3>{{ selectedNode.name }}</h3>
+      <button mat-icon-button (click)="selectedNode = null">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <div class="details-content">
+      <div class="detail-row">
+        <span class="label">KB ID:</span>
+        <span class="value">{{ selectedNode.kb_id }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="label">Type:</span>
+        <span class="value" [style.color]="getTypeColor(selectedNode.type)">{{ selectedNode.type | titlecase }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="label">Confidence:</span>
+        <span class="value" [style.color]="getConfidenceColor(selectedNode.confidence_level)">{{ selectedNode.confidence_level | titlecase }}</span>
+      </div>
+      <div *ngIf="selectedNode.region" class="detail-row">
+        <span class="label">Region:</span>
+        <span class="value">{{ selectedNode.region }}</span>
+      </div>
+      <div *ngIf="selectedNode.description" class="detail-row">
+        <span class="label">Description:</span>
+        <p class="value">{{ selectedNode.description }}</p>
+      </div>
+      <div *ngIf="selectedNode.visual_cues" class="detail-row">
+        <span class="label">Visual Cues:</span>
+        <p class="value">{{ selectedNode.visual_cues }}</p>
+      </div>
+      <div *ngIf="selectedNode.tags?.length" class="detail-row">
+        <span class="label">Tags:</span>
+        <div class="tags">
+          <mat-chip *ngFor="let tag of selectedNode.tags">{{ tag }}</mat-chip>
+        </div>
+      </div>
+      <div *ngIf="selectedNode.parent_details" class="detail-row">
+        <span class="label">Parent:</span>
+        <a class="value-link" (click)="selectNode(selectedNode.parent_details)">
+          {{ selectedNode.parent_details.name }}
+        </a>
+      </div>
+      <div *ngIf="selectedNode.children_details?.length" class="detail-row">
+        <span class="label">Children:</span>
+        <ul class="value-list">
+          <li *ngFor="let child of selectedNode.children_details" (click)="loadAllNodes(); viewMode = 'list'">
+            {{ child.name }} <small>({{ child.type }})</small>
+          </li>
+        </ul>
+      </div>
+      <div *ngIf="selectedNode.related_details?.length" class="detail-row">
+        <span class="label">Related:</span>
+        <ul class="value-list">
+          <li *ngFor="let related of selectedNode.related_details">
+            {{ related.name }} <small>({{ related.type }})</small>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="details-actions">
+      <button mat-raised-button class="primary-btn" (click)="editNode(selectedNode)">
+        <mat-icon>edit</mat-icon> Edit Node
+      </button>
+      <button mat-stroked-button color="warn" (click)="deleteNode(selectedNode)">
+        <mat-icon>delete</mat-icon> Delete Node
+      </button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Node Tree Template -->
+<ng-template #nodeTemplate let-node let-level="level">
+  <div class="tree-node-wrapper" [style.margin-left.px]="level * 16">
+    <div class="tree-node-header" [class.has-children]="node.children?.length > 0">
+      <button *ngIf="node.children?.length > 0" mat-icon-button class="expand-btn"
+        [class.expanded]="isNodeExpanded(node)"
+        (click)="toggleNode(node)">
+        <mat-icon>{{ isNodeExpanded(node) ? 'expand_more' : 'chevron_right' }}</mat-icon>
+      </button>
+      <div *ngIf="!node.children?.length" class="expand-spacer"></div>
+
+      <div class="type-badge" [style.background]="getTypeColor(node.type)">
+        <mat-icon [style.color]="'white'" style="font-size: 12px; width: 12px; height: 12px;">●</mat-icon>
+      </div>
+
+      <div class="node-info" (click)="selectNode(node)">
+        <span class="node-name">{{ node.name }}</span>
+        <span class="kb-id">{{ node.kb_id }}</span>
+        <mat-chip>{{ node.type | titlecase }}</mat-chip>
+        <mat-chip [style.background]="getConfidenceColor(node.confidence_level)" [style.color]="'white'">
+          {{ node.confidence_level }}
+        </mat-chip>
+      </div>
+
+      <div class="node-actions">
+        <button mat-icon-button (click)="editNode(node); $event.stopPropagation()" matTooltip="Edit">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button (click)="deleteNode(node); $event.stopPropagation()" matTooltip="Delete">
+          <mat-icon color="warn">delete</mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="isNodeExpanded(node) && node.children?.length" class="tree-children">
+      <ng-container *ngFor="let child of node.children">
+        <ng-container *ngTemplateOutlet="nodeTemplate; context: { $implicit: child, level: level + 1 }"></ng-container>
+      </ng-container>
+    </div>
+  </div>
+</ng-template>

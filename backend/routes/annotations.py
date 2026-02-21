@@ -12,6 +12,21 @@ import traceback
 annotations_bp = Blueprint('annotations', __name__)
 
 
+def _reset_video_approval_if_needed(video_id):
+    """Reset video review status if it was approved (content changed)."""
+    video = current_app.db.videos.find_one({'_id': video_id})
+    if video and video.get('review_status') == 'approved':
+        current_app.db.videos.update_one(
+            {'_id': video_id},
+            {'$set': {
+                'review_status': 'not_submitted',
+                'reviews': [],
+                'review_comment': 'Auto-reset: Content modified after approval',
+                'updated_at': datetime.now(timezone.utc)
+            }}
+        )
+
+
 # ============ CAPTIONS (Step 3) ============
 
 @annotations_bp.route('/segment/<segment_id>', methods=['GET'])
@@ -150,6 +165,10 @@ def create_caption():
                 'updated_at': datetime.now(timezone.utc)
             }}
         )
+        
+        # Reset video approval if was approved
+        _reset_video_approval_if_needed(ObjectId(data['video_id']))
+        
         updated = current_app.db.captions.find_one({'_id': existing['_id']})
         return jsonify({
             'id': str(updated['_id']),
@@ -186,6 +205,9 @@ def create_caption():
     }
 
     result = current_app.db.captions.insert_one(caption)
+    
+    # Reset video approval if was approved
+    _reset_video_approval_if_needed(ObjectId(data['video_id']))
 
     return jsonify({
         'id': str(result.inserted_id),
@@ -240,6 +262,9 @@ def update_caption(caption_id):
         {'_id': ObjectId(caption_id)},
         {'$set': update_fields}
     )
+    
+    # Reset video approval if was approved
+    _reset_video_approval_if_needed(caption['video_id'])
 
     updated = current_app.db.captions.find_one({'_id': ObjectId(caption_id)})
     return jsonify({

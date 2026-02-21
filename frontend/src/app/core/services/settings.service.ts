@@ -9,6 +9,7 @@ export interface AppSettings {
   translate_prompt_vi_to_en: string;
   dam_server_url: string;
   gemini_combine_prompt: string;
+  timezone: string;  // e.g., 'Asia/Ho_Chi_Minh', 'UTC'
 }
 
 const STORAGE_KEY = 'annotator_settings';
@@ -23,6 +24,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   dam_server_url: '',
   gemini_combine_prompt:
     'Combine the following captions into a single, coherent description. Only return the combined text, nothing else.\n\nCaptions: {{captions}}',
+  timezone: 'Asia/Ho_Chi_Minh',  // Default to Vietnam timezone
 };
 
 @Injectable({ providedIn: 'root' })

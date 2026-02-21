@@ -21,7 +21,9 @@ import { VideoService } from '../../core/services/video.service';
 import { AuthService } from '../../core/services/auth.service';
 import { GeminiService } from '../../core/services/gemini.service';
 import { SettingsService } from '../../core/services/settings.service';
+import { KnowledgeBaseService } from '../../core/services/knowledge-base.service';
 import { SettingsDialogComponent } from '../settings-dialog/settings-dialog.component';
+import { KnowledgeBaseSelectorComponent } from '../../core/components/knowledge-base-selector/knowledge-base-selector.component';
 import { VideoItem, VideoSegment, ObjectRegion, Caption, Category } from '../../core/models';
 
 @Component({
@@ -31,7 +33,8 @@ import { VideoItem, VideoSegment, ObjectRegion, Caption, Category } from '../../
     CommonModule, FormsModule,
     MatButtonModule, MatIconModule, MatSliderModule, MatFormFieldModule,
     MatInputModule, MatSelectModule, MatSnackBarModule, MatProgressSpinnerModule,
-    MatTooltipModule, MatMenuModule, MatTabsModule, MatProgressBarModule, MatDialogModule
+    MatTooltipModule, MatMenuModule, MatTabsModule, MatProgressBarModule, MatDialogModule,
+    KnowledgeBaseSelectorComponent
   ],
   templateUrl: './video-editor.component.html',
   styleUrls: ['./video-editor.component.scss']
@@ -119,6 +122,9 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     combined_caption_vi: '',
     visual_caption_vi: ''
   };
+  // Knowledge Base IDs for captions
+  captionKBIds: string[] = [];
+  segmentCaptionKBIds: string[] = [];
   generatingVisual = false;
   generatingContextual = false;
   generatingAll = false;
@@ -140,6 +146,8 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   // Categories
   categories: Category[] = [];
   showCategoryManager = false;
+  showCategoryDropdown = false;
+  showInlineCategoryAdd = false;
   newCategoryName = '';
   newCategoryColor = '#3b82f6';
   newCategoryDesc = '';
@@ -152,6 +160,7 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     private authService: AuthService,
     private geminiService: GeminiService,
     private settingsService: SettingsService,
+    private kbService: KnowledgeBaseService,
     private dialog: MatDialog,
     private snackBar: MatSnackBar
   ) {}
@@ -1353,30 +1362,33 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     img.src = maskDataUrl;
   }
 
-  autoCombineCaptions(): void {
+  /** Check if segment has Vietnamese content ready for combining */
+  canCombineSegmentCaptions(): boolean {
     const d = this.segmentCaptionData;
-    const parts: string[] = [];
-    if (d.contextual_caption) parts.push(d.contextual_caption);
-    if (d.knowledge_caption) parts.push(d.knowledge_caption);
-    this.geminiService.combineCaptions(parts, false).then(result => {
-      d.combined_caption = result;
-    }).catch(() => {
-      d.combined_caption = parts.join('. ');
-    });
-
-    const partsVi: string[] = [];
-    if (d.contextual_caption_vi) partsVi.push(d.contextual_caption_vi);
-    if (d.knowledge_caption_vi) partsVi.push(d.knowledge_caption_vi);
-    this.geminiService.combineCaptions(partsVi, true).then(result => {
-      d.combined_caption_vi = result;
-    }).catch(() => {
-      d.combined_caption_vi = partsVi.join('. ');
-    });
+    const hasViDescription = !!(d.visual_caption_vi?.trim() || d.contextual_caption_vi?.trim());
+    return hasViDescription && this.segmentCaptionKBIds.length > 0;
   }
 
-  /** Auto combine + translate combined caption via Gemini */
+  /** Get tooltip message for segment combine button */
+  getSegmentCombineTooltip(): string {
+    const d = this.segmentCaptionData;
+    const hasViDescription = !!(d.visual_caption_vi?.trim() || d.contextual_caption_vi?.trim());
+    const hasKB = this.segmentCaptionKBIds.length > 0;
+    
+    if (!hasViDescription && !hasKB) {
+      return 'Cần có mô tả tiếng Việt và chọn Knowledge Base';
+    }
+    if (!hasViDescription) {
+      return 'Cần có mô tả tiếng Việt (Visual hoặc Contextual)';
+    }
+    if (!hasKB) {
+      return 'Cần chọn Knowledge Base';
+    }
+    return '';
+  }
+
+  /** Auto combine + translate: Vietnamese first, then translate to English */
   async autoCombineAndTranslate(): Promise<void> {
-    this.autoCombineCaptions();
     const d = this.segmentCaptionData;
 
     if (!this.geminiService.isConfigured()) {
@@ -1388,19 +1400,32 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.translating = true;
     try {
-      // If EN combined exists but VI is empty/just-combined → translate EN→VI
-      if (d.combined_caption) {
-        const viResult = await this.geminiService.translateToVi(d.combined_caption);
-        d.combined_caption_vi = viResult;
+      // Step 1: Get KB context (Vietnamese)
+      let kbContextVi = '';
+      if (this.segmentCaptionKBIds.length > 0) {
+        const contextData = await this.kbService.getContext(this.segmentCaptionKBIds).toPromise();
+        if (contextData) {
+          kbContextVi = contextData.context_text_vi;
+        }
       }
-      // If VI combined exists but EN is empty → translate VI→EN
-      if (d.combined_caption_vi && !d.combined_caption) {
-        const enResult = await this.geminiService.translateToEn(d.combined_caption_vi);
+
+      // Step 2: Combine Vietnamese captions with KB context
+      const partsVi: string[] = [];
+      if (d.visual_caption_vi) partsVi.push(d.visual_caption_vi);
+      if (d.contextual_caption_vi) partsVi.push(d.contextual_caption_vi);
+      
+      const combinedVi = await this.geminiService.combineCaptionsWithKnowledge(partsVi, kbContextVi, true);
+      d.combined_caption_vi = combinedVi;
+
+      // Step 3: Translate Vietnamese combined to English
+      if (combinedVi) {
+        const enResult = await this.geminiService.translateToEn(combinedVi);
         d.combined_caption = enResult;
       }
-      this.snackBar.open('Translation complete!', '', { duration: 2000, panelClass: 'snack-success' });
+
+      this.snackBar.open('Combine & Translate thành công!', '', { duration: 2000, panelClass: 'snack-success' });
     } catch (err: any) {
-      this.snackBar.open(err.message || 'Translation failed', '', { duration: 4000, panelClass: 'snack-error' });
+      this.snackBar.open(err.message || 'Combine/Translate failed', '', { duration: 4000, panelClass: 'snack-error' });
     } finally {
       this.translating = false;
     }
@@ -1438,31 +1463,33 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  /** Auto combine region captions: visual + knowledge → combined */
-  autoCombineRegionCaptions(): void {
+  /** Check if region has Vietnamese content ready for combining */
+  canCombineRegionCaptions(): boolean {
     const d = this.captionData;
-    const parts: string[] = [];
-    if (d.visual_caption) parts.push(d.visual_caption);
-    if (d.knowledge_caption) parts.push(d.knowledge_caption);
-    this.geminiService.combineCaptions(parts, false).then(result => {
-      d.combined_caption = result;
-    }).catch(() => {
-      d.combined_caption = parts.join('. ');
-    });
-
-    const partsVi: string[] = [];
-    if (d.visual_caption_vi) partsVi.push(d.visual_caption_vi);
-    if (d.knowledge_caption_vi) partsVi.push(d.knowledge_caption_vi);
-    this.geminiService.combineCaptions(partsVi, true).then(result => {
-      d.combined_caption_vi = result;
-    }).catch(() => {
-      d.combined_caption_vi = partsVi.join('. ');
-    });
+    const hasViDescription = !!(d.visual_caption_vi?.trim() || d.knowledge_caption_vi?.trim());
+    return hasViDescription && this.captionKBIds.length > 0;
   }
 
-  /** Auto combine region captions + translate via Gemini */
+  /** Get tooltip message for region combine button */
+  getRegionCombineTooltip(): string {
+    const d = this.captionData;
+    const hasViDescription = !!(d.visual_caption_vi?.trim() || d.knowledge_caption_vi?.trim());
+    const hasKB = this.captionKBIds.length > 0;
+    
+    if (!hasViDescription && !hasKB) {
+      return 'Cần có mô tả tiếng Việt và chọn Knowledge Base';
+    }
+    if (!hasViDescription) {
+      return 'Cần có mô tả tiếng Việt (Visual hoặc Knowledge)';
+    }
+    if (!hasKB) {
+      return 'Cần chọn Knowledge Base';
+    }
+    return '';
+  }
+
+  /** Auto combine region captions + translate: Vietnamese first, then English */
   async autoCombineRegionAndTranslate(): Promise<void> {
-    this.autoCombineRegionCaptions();
     const d = this.captionData;
 
     if (!this.geminiService.isConfigured()) {
@@ -1474,17 +1501,32 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.translating = true;
     try {
-      if (d.combined_caption) {
-        const viResult = await this.geminiService.translateToVi(d.combined_caption);
-        d.combined_caption_vi = viResult;
+      // Step 1: Get KB context (Vietnamese)
+      let kbContextVi = '';
+      if (this.captionKBIds.length > 0) {
+        const contextData = await this.kbService.getContext(this.captionKBIds).toPromise();
+        if (contextData) {
+          kbContextVi = contextData.context_text_vi;
+        }
       }
-      if (d.combined_caption_vi && !d.combined_caption) {
-        const enResult = await this.geminiService.translateToEn(d.combined_caption_vi);
+
+      // Step 2: Combine Vietnamese captions with KB context
+      const partsVi: string[] = [];
+      if (d.visual_caption_vi) partsVi.push(d.visual_caption_vi);
+      if (d.knowledge_caption_vi) partsVi.push(d.knowledge_caption_vi);
+      
+      const combinedVi = await this.geminiService.combineCaptionsWithKnowledge(partsVi, kbContextVi, true);
+      d.combined_caption_vi = combinedVi;
+
+      // Step 3: Translate Vietnamese combined to English
+      if (combinedVi) {
+        const enResult = await this.geminiService.translateToEn(combinedVi);
         d.combined_caption = enResult;
       }
-      this.snackBar.open('Translation complete!', '', { duration: 2000, panelClass: 'snack-success' });
+
+      this.snackBar.open('Combine & Translate thành công!', '', { duration: 2000, panelClass: 'snack-success' });
     } catch (err: any) {
-      this.snackBar.open(err.message || 'Translation failed', '', { duration: 4000, panelClass: 'snack-error' });
+      this.snackBar.open(err.message || 'Combine/Translate failed', '', { duration: 4000, panelClass: 'snack-error' });
     } finally {
       this.translating = false;
     }
@@ -1873,6 +1915,7 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   getReviewLabel(status?: string): string {
     switch (status) {
       case 'pending_review': return 'Pending Review';
+      case 'in_review': return 'In Review';
       case 'approved': return 'Approved';
       case 'rejected': return 'Rejected';
       default: return 'Not Submitted';
@@ -1880,15 +1923,68 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   canSubmitForReview(): boolean {
-    if (!this.video?.reviewer_id) return false;
-    const status = this.video.review_status || 'not_submitted';
+    // Can submit if has reviewers and not pending/in_review/approved
+    const hasReviewers = (this.video?.subpart_reviewers?.length ?? 0) > 0 || !!this.video?.reviewer_id;
+    if (!hasReviewers) return false;
+    const status = this.video?.review_status || 'not_submitted';
     return status === 'not_submitted' || status === 'rejected';
   }
 
   canReview(): boolean {
-    if (!this.video?.reviewer_id) return false;
     const currentUserId = this.authService.user()?.id;
-    return currentUserId === this.video.reviewer_id && this.video.review_status === 'pending_review';
+    if (!currentUserId || !this.video) return false;
+    
+    // Check if user is a reviewer
+    const reviewers = this.video.subpart_reviewers || (this.video.reviewer_id ? [this.video.reviewer_id] : []);
+    if (!reviewers.includes(currentUserId)) return false;
+    
+    // Can review if pending or in_review
+    return this.video.review_status === 'pending_review' || this.video.review_status === 'in_review';
+  }
+
+  hasUserReviewed(): boolean {
+    const currentUserId = this.authService.user()?.id;
+    return this.video?.reviews?.some(r => r.reviewer_id === currentUserId) ?? false;
+  }
+
+  getUserReview(): { action: 'approve' | 'reject'; comment?: string } | null {
+    const currentUserId = this.authService.user()?.id;
+    const review = this.video?.reviews?.find(r => r.reviewer_id === currentUserId);
+    return review ? { action: review.action, comment: review.comment } : null;
+  }
+
+  getReviewerAction(reviewerId: string): string | null {
+    const review = this.video?.reviews_with_details?.find(r => r.reviewer.id === reviewerId);
+    return review?.action || null;
+  }
+
+  canRevokeApproval(): boolean {
+    // Admin or any reviewer can revoke when approved
+    const currentUserId = this.authService.user()?.id;
+    const userRole = this.authService.user()?.role;
+    if (this.video?.review_status !== 'approved') return false;
+    
+    const reviewers = this.video.subpart_reviewers || (this.video.reviewer_id ? [this.video.reviewer_id] : []);
+    return userRole === 'admin' || reviewers.includes(currentUserId || '');
+  }
+
+  canWithdrawReview(): boolean {
+    const currentUserId = this.authService.user()?.id;
+    if (!currentUserId || !this.video) return false;
+    
+    // Can withdraw if has reviewed and status is in_review or pending_review
+    const hasReviewed = this.video.reviews?.some(r => r.reviewer_id === currentUserId);
+    return hasReviewed && (this.video.review_status === 'in_review' || this.video.review_status === 'pending_review');
+  }
+
+  getReviewSummary(): string {
+    if (!this.video?.reviews?.length) return 'No reviews yet';
+    
+    const approvals = this.video.reviews.filter(r => r.action === 'approve').length;
+    const rejections = this.video.reviews.filter(r => r.action === 'reject').length;
+    const totalReviewers = this.video.subpart_reviewers?.length || (this.video.reviewer_id ? 1 : 0);
+    
+    return `${approvals}/${totalReviewers} approved, ${rejections} rejected`;
   }
 
   submitForReview(): void {
@@ -1897,6 +1993,7 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
       next: () => {
         this.video!.review_status = 'pending_review';
         this.video!.review_comment = '';
+        this.video!.reviews = [];
         this.snackBar.open('Submitted for review!', '', { duration: 2000, panelClass: 'snack-success' });
       }
     });
@@ -1907,8 +2004,10 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     this.videoService.reviewVideo(this.video.id, 'approve').subscribe({
       next: (res) => {
         this.video!.review_status = res.review_status;
+        this.video!.reviews = res.reviews || [];
         this.video!.review_comment = '';
-        this.snackBar.open('Video approved!', '', { duration: 2000, panelClass: 'snack-success' });
+        this.snackBar.open('Your approval recorded!', '', { duration: 2000, panelClass: 'snack-success' });
+        this.loadVideo(this.video!.id); // Reload to get updated details
       }
     });
   }
@@ -1918,9 +2017,33 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     this.videoService.reviewVideo(this.video.id, 'reject', this.editorRejectComment).subscribe({
       next: (res) => {
         this.video!.review_status = res.review_status;
+        this.video!.reviews = res.reviews || [];
         this.video!.review_comment = res.review_comment || '';
         this.showEditorRejectDialog = false;
-        this.snackBar.open('Video rejected', '', { duration: 2000, panelClass: 'snack-success' });
+        this.snackBar.open('Your rejection recorded', '', { duration: 2000, panelClass: 'snack-success' });
+        this.loadVideo(this.video!.id); // Reload to get updated details
+      }
+    });
+  }
+
+  revokeApproval(): void {
+    if (!this.video || !confirm('Revoke approval and reset to not submitted?')) return;
+    this.videoService.revokeApproval(this.video.id).subscribe({
+      next: () => {
+        this.video!.review_status = 'not_submitted';
+        this.video!.reviews = [];
+        this.snackBar.open('Approval revoked', '', { duration: 2000, panelClass: 'snack-success' });
+      }
+    });
+  }
+
+  withdrawReview(): void {
+    if (!this.video || !confirm('Withdraw your review?')) return;
+    this.videoService.withdrawReview(this.video.id).subscribe({
+      next: (res) => {
+        this.video!.review_status = res.review_status;
+        this.video!.reviews = res.reviews || [];
+        this.snackBar.open('Your review withdrawn', '', { duration: 2000, panelClass: 'snack-success' });
       }
     });
   }

@@ -1,0 +1,343 @@
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="nav-left">
+    <div class="nav-logo">
+      <mat-icon>videocam</mat-icon>
+      <span>AIRC Video Annotator</span>
+    </div>
+    <div class="nav-links">
+      <a class="nav-link" routerLink="/dashboard">
+        <mat-icon>folder</mat-icon>
+        <span>Projects</span>
+      </a>
+      <a class="nav-link active">
+        <mat-icon>verified</mat-icon>
+        <span>Quality Control</span>
+      </a>
+      <a class="nav-link" routerLink="/knowledge-base">
+        <mat-icon>psychology</mat-icon>
+        <span>Knowledge Base</span>
+      </a>
+    </div>
+  </div>
+  <div class="nav-right">
+    <div class="user-info" [matMenuTriggerFor]="userMenu">
+      <div class="user-avatar" [style.background]="user()?.avatar_color || '#4A90D9'">
+        {{ user()?.full_name?.charAt(0) || user()?.username?.charAt(0) || 'U' }}
+      </div>
+      <span class="user-name">{{ user()?.full_name || user()?.username }}</span>
+      <mat-icon>arrow_drop_down</mat-icon>
+    </div>
+    <mat-menu #userMenu="matMenu">
+      <button mat-menu-item (click)="openSettings()">
+        <mat-icon>settings</mat-icon>
+        <span>Settings</span>
+      </button>
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Logout</span>
+      </button>
+    </mat-menu>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<div class="qc-content">
+  <div class="page-header">
+    <div>
+      <h1>Quality Control Dashboard</h1>
+      <p>Monitor annotation quality and review progress</p>
+    </div>
+    <button mat-stroked-button (click)="loadStats()">
+      <mat-icon>refresh</mat-icon>
+      Refresh
+    </button>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+
+  <ng-container *ngIf="!loading && stats">
+    <!-- Summary Cards -->
+    <div class="stats-cards">
+      <div class="stat-card total">
+        <div class="stat-icon">
+          <mat-icon>movie</mat-icon>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ stats.total_videos }}</span>
+          <span class="stat-label">Total Videos</span>
+        </div>
+      </div>
+      
+      <div class="stat-card approved">
+        <div class="stat-icon">
+          <mat-icon>check_circle</mat-icon>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ stats.by_status.approved }}</span>
+          <span class="stat-label">Approved</span>
+          <span class="stat-percent">{{ approvalRate }}%</span>
+        </div>
+      </div>
+      
+      <div class="stat-card rejected">
+        <div class="stat-icon">
+          <mat-icon>cancel</mat-icon>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ stats.by_status.rejected }}</span>
+          <span class="stat-label">Rejected</span>
+          <span class="stat-percent">{{ rejectionRate }}%</span>
+        </div>
+      </div>
+      
+      <div class="stat-card in-review">
+        <div class="stat-icon">
+          <mat-icon>pending</mat-icon>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ stats.by_status.in_review }}</span>
+          <span class="stat-label">In Review</span>
+        </div>
+      </div>
+      
+      <div class="stat-card pending">
+        <div class="stat-icon">
+          <mat-icon>schedule</mat-icon>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ stats.by_status.pending }}</span>
+          <span class="stat-label">Pending</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project Breakdown -->
+    <div class="section-card">
+      <h2><mat-icon>folder</mat-icon> Project Breakdown</h2>
+      <div class="project-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th class="center">Total</th>
+              <th class="center">Approved</th>
+              <th class="center">Rejected</th>
+              <th class="center">In Review</th>
+              <th class="center">Pending</th>
+              <th>Approval Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let project of projectStats">
+              <td class="project-name">{{ project.name }}</td>
+              <td class="center">{{ project.total }}</td>
+              <td class="center approved">{{ project.approved }}</td>
+              <td class="center rejected">{{ project.rejected }}</td>
+              <td class="center in-review">{{ project.in_review }}</td>
+              <td class="center pending">{{ project.pending }}</td>
+              <td>
+                <div class="progress-bar">
+                  <div class="progress-fill" [style.width.%]="project.approvalRate"></div>
+                  <span class="progress-text">{{ project.approvalRate }}%</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- User Stats Section -->
+    <div class="section-card">
+      <h2><mat-icon>people</mat-icon> Reviewer Statistics</h2>
+      <div class="user-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Reviewer</th>
+              <th class="center">Total Reviews</th>
+              <th class="center">Approved</th>
+              <th class="center">Rejected</th>
+              <th>Approval Tendency</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let user of stats.by_user">
+              <td class="user-cell">
+                <div class="user-info">
+                  <div class="user-avatar" [style.background]="user.color">
+                    {{ user.name.charAt(0) }}
+                  </div>
+                  <span>{{ user.name }}</span>
+                </div>
+              </td>
+              <td class="center total">{{ user.total_reviews }}</td>
+              <td class="center approved">{{ user.approved }}</td>
+              <td class="center rejected">{{ user.rejected }}</td>
+              <td>
+                <div class="approval-bar">
+                  <div class="bar-segment approved" 
+                       [style.width.%]="user.total_reviews > 0 ? (user.approved / user.total_reviews * 100) : 0">
+                  </div>
+                  <div class="bar-segment rejected" 
+                       [style.width.%]="user.total_reviews > 0 ? (user.rejected / user.total_reviews * 100) : 0">
+                  </div>
+                </div>
+                <span class="bar-label">
+                  {{ user.total_reviews > 0 ? ((user.approved / user.total_reviews) * 100 | number:'1.0-0') : 0 }}% approved
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div *ngIf="!stats.by_user || stats.by_user.length === 0" class="empty-row">
+          <p>No review activity yet.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs: Pending Reviews & Recent Activity -->
+    <mat-tab-group class="qc-tabs">
+      <!-- Pending Reviews Tab -->
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon>hourglass_empty</mat-icon>
+          <span>Pending Reviews</span>
+          <span class="tab-badge" *ngIf="stats.pending_reviews.length > 0">{{ stats.pending_reviews.length }}</span>
+        </ng-template>
+        
+        <div class="tab-content">
+          <div *ngIf="stats.pending_reviews.length === 0" class="empty-state">
+            <mat-icon>check_circle</mat-icon>
+            <p>No pending reviews! All caught up.</p>
+          </div>
+          
+          <ng-container *ngIf="stats.pending_reviews.length > 0">
+            <table class="reviews-table">
+              <thead>
+                <tr>
+                  <th>Video</th>
+                  <th>Project</th>
+                  <th>Subpart</th>
+                  <th>Pending Reviewers</th>
+                  <th>Waiting Since</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let item of paginatedPendingReviews" 
+                    [class.urgent]="getWaitingDays(item.created_at) > 3">
+                  <td class="video-name">{{ item.video_name }}</td>
+                  <td>{{ item.project_name }}</td>
+                  <td>{{ item.subpart_name }}</td>
+                  <td class="reviewers-cell">
+                    <div class="reviewer-avatars">
+                      <div *ngFor="let reviewer of item.pending_reviewers" 
+                           class="reviewer-avatar"
+                           [style.background]="reviewer.color"
+                           [matTooltip]="reviewer.name">
+                        {{ reviewer.name.charAt(0) }}
+                      </div>
+                    </div>
+                  </td>
+                  <td class="waiting-cell">
+                    <span class="waiting-badge" [class.urgent]="getWaitingDays(item.created_at) > 3">
+                      {{ formatDate(item.created_at) }}
+                    </span>
+                  </td>
+                  <td>
+                    <button mat-icon-button matTooltip="Open Video" (click)="openVideo(item.video_id)">
+                      <mat-icon>open_in_new</mat-icon>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            
+            <!-- Pagination -->
+            <div class="pagination" *ngIf="pendingTotalPages > 1">
+              <button mat-icon-button (click)="pendingPrevPage()" [disabled]="pendingPage === 1">
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+              <span class="page-info">{{ pendingPage }} / {{ pendingTotalPages }}</span>
+              <button mat-icon-button (click)="pendingNextPage()" [disabled]="pendingPage === pendingTotalPages">
+                <mat-icon>chevron_right</mat-icon>
+              </button>
+            </div>
+          </ng-container>
+        </div>
+      </mat-tab>
+
+      <!-- Recent Reviews Tab -->
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon>history</mat-icon>
+          <span>Recent Activity</span>
+        </ng-template>
+        
+        <div class="tab-content">
+          <div *ngIf="stats.recent_reviews.length === 0" class="empty-state">
+            <mat-icon>history</mat-icon>
+            <p>No recent review activity.</p>
+          </div>
+          
+          <ng-container *ngIf="stats.recent_reviews.length > 0">
+            <table class="reviews-table">
+              <thead>
+                <tr>
+                  <th>Video</th>
+                  <th>Project</th>
+                  <th>Reviewer</th>
+                  <th>Decision</th>
+                  <th>Date</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let review of paginatedRecentReviews">
+                  <td class="video-name">{{ review.video_name }}</td>
+                  <td>{{ review.project_name }}</td>
+                  <td class="reviewer-cell">
+                    <div class="reviewer-info">
+                      <div class="reviewer-avatar" [style.background]="review.reviewer_color">
+                        {{ review.reviewer_name.charAt(0) }}
+                      </div>
+                      <span>{{ review.reviewer_name }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="status-chip" [class]="getStatusClass(review.status)">
+                      <mat-icon>{{ getStatusIcon(review.status) }}</mat-icon>
+                      {{ review.status }}
+                    </span>
+                  </td>
+                  <td class="date-cell">{{ formatDate(review.reviewed_at) }}</td>
+                  <td>
+                    <button mat-icon-button matTooltip="Open Video" (click)="openVideo(review.video_id)">
+                      <mat-icon>open_in_new</mat-icon>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            
+            <!-- Pagination -->
+            <div class="pagination" *ngIf="activityTotalPages > 1">
+              <button mat-icon-button (click)="activityPrevPage()" [disabled]="activityPage === 1">
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+              <span class="page-info">{{ activityPage }} / {{ activityTotalPages }}</span>
+              <button mat-icon-button (click)="activityNextPage()" [disabled]="activityPage === activityTotalPages">
+                <mat-icon>chevron_right</mat-icon>
+              </button>
+            </div>
+          </ng-container>
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  </ng-container>
+</div>

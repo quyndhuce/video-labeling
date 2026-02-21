@@ -19,12 +19,20 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/dashboard/dashboard.component').then(m => m.DashboardComponent)
       },
       {
+        path: 'qc-dashboard',
+        loadComponent: () => import('./pages/qc-dashboard/qc-dashboard.component').then(m => m.QcDashboardComponent)
+      },
+      {
         path: 'projects/:id',
         loadComponent: () => import('./pages/project-detail/project-detail.component').then(m => m.ProjectDetailComponent)
       },
       {
         path: 'editor/:videoId',
         loadComponent: () => import('./pages/video-editor/video-editor.component').then(m => m.VideoEditorComponent)
+      },
+      {
+        path: 'knowledge-base',
+        loadComponent: () => import('./knowledge-base/knowledge-base.component').then(m => m.KnowledgeBaseComponent)
       },
       {
         path: '',

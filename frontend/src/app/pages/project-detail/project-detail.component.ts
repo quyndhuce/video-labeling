@@ -85,7 +85,9 @@ export class ProjectDetailComponent implements OnInit {
   rejectingVideo: VideoItem | null = null;
   rejectComment = '';
   selectedReviewer = '';
+  selectedReviewers: string[] = [];
   editSubpartReviewer = '';
+  editSubpartReviewers: string[] = [];
 
   // Annotator Assignment
   showAnnotatorDialog = false;
@@ -215,7 +217,8 @@ export class ProjectDetailComponent implements OnInit {
       name: this.newSubpartName,
       description: this.newSubpartDesc,
       assigned_users: this.selectedUsers,
-      reviewer: this.selectedReviewer || undefined
+      reviewer: this.selectedReviewers[0] || this.selectedReviewer || undefined,
+      reviewers: this.selectedReviewers
     } as any).subscribe({
       next: (newSubpart: any) => {
         this.showSubpartDialog = false;
@@ -223,6 +226,7 @@ export class ProjectDetailComponent implements OnInit {
         this.newSubpartDesc = '';
         this.selectedUsers = [];
         this.selectedReviewer = '';
+        this.selectedReviewers = [];
         
         // Just reload the project subparts list, keep current view (stay on subparts list)
         this.projectService.getProject(this.project!.id).subscribe({
@@ -459,6 +463,7 @@ export class ProjectDetailComponent implements OnInit {
     this.editSubpartStatus = sp.status;
     this.editSubpartUsers = sp.assigned_users || [];
     this.editSubpartReviewer = sp.reviewer || '';
+    this.editSubpartReviewers = sp.reviewers || [];
     this.showEditSubpartDialog = true;
   }
 
@@ -469,7 +474,8 @@ export class ProjectDetailComponent implements OnInit {
       description: this.editSubpartDesc,
       status: this.editSubpartStatus,
       assigned_users: this.editSubpartUsers,
-      reviewer: this.editSubpartReviewer || null
+      reviewer: this.editSubpartReviewers[0] || this.editSubpartReviewer || null,
+      reviewers: this.editSubpartReviewers
     } as any).subscribe({
       next: () => {
         this.showEditSubpartDialog = false;

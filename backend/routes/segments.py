@@ -15,6 +15,21 @@ from routes.settings import get_dam_url
 segments_bp = Blueprint('segments', __name__)
 
 
+def _reset_video_approval_if_needed(video_id):
+    """Reset video review status if it was approved (content changed)."""
+    video = current_app.db.videos.find_one({'_id': video_id})
+    if video and video.get('review_status') == 'approved':
+        current_app.db.videos.update_one(
+            {'_id': video_id},
+            {'$set': {
+                'review_status': 'not_submitted',
+                'reviews': [],
+                'review_comment': 'Auto-reset: Content modified after approval',
+                'updated_at': datetime.now(timezone.utc)
+            }}
+        )
+
+
 # ============ VIDEO SEGMENTS (Step 1: Cut & Split) ============
 
 @segments_bp.route('/video/<video_id>', methods=['GET'])
@@ -90,6 +105,9 @@ def create_segment(video_id):
     }
 
     result = current_app.db.video_segments.insert_one(segment)
+    
+    # Reset video approval if was approved
+    _reset_video_approval_if_needed(ObjectId(video_id))
 
     return jsonify({
         'id': str(result.inserted_id),
@@ -131,6 +149,9 @@ def update_segment(segment_id):
         {'_id': ObjectId(segment_id)},
         {'$set': update_fields}
     )
+    
+    # Reset video approval if was approved
+    _reset_video_approval_if_needed(segment['video_id'])
 
     updated = current_app.db.video_segments.find_one({'_id': ObjectId(segment_id)})
     return jsonify({
@@ -155,10 +176,15 @@ def delete_segment(segment_id):
     if not segment:
         return jsonify({'error': 'Segment not found'}), 404
 
+    video_id = segment['video_id']
+    
     # Delete related data
     current_app.db.captions.delete_many({'segment_id': ObjectId(segment_id)})
     current_app.db.object_regions.delete_many({'segment_id': ObjectId(segment_id)})
     current_app.db.video_segments.delete_one({'_id': ObjectId(segment_id)})
+    
+    # Reset video approval if was approved
+    _reset_video_approval_if_needed(video_id)
 
     return jsonify({'message': 'Segment deleted successfully'})
 
@@ -212,6 +238,9 @@ def create_segments_batch(video_id):
             'regions': [],
             'created_at': segment['created_at'].isoformat()
         })
+
+    # Reset video approval if was approved
+    _reset_video_approval_if_needed(ObjectId(video_id))
 
     return jsonify(created), 201
 
@@ -285,6 +314,9 @@ def create_region(segment_id):
     }
 
     result = current_app.db.object_regions.insert_one(region)
+    
+    # Reset video approval if was approved
+    _reset_video_approval_if_needed(segment['video_id'])
 
     return jsonify({
         'id': str(result.inserted_id),
@@ -335,6 +367,9 @@ def update_region(region_id):
         {'_id': ObjectId(region_id)},
         {'$set': update_fields}
     )
+    
+    # Reset video approval if was approved
+    _reset_video_approval_if_needed(region['video_id'])
 
     return jsonify({'message': 'Region updated successfully'})
 
@@ -350,8 +385,13 @@ def delete_region(region_id):
     if not region:
         return jsonify({'error': 'Region not found'}), 404
 
+    video_id = region['video_id']
+    
     current_app.db.captions.delete_many({'region_id': ObjectId(region_id)})
     current_app.db.object_regions.delete_one({'_id': ObjectId(region_id)})
+    
+    # Reset video approval if was approved
+    _reset_video_approval_if_needed(video_id)
 
     return jsonify({'message': 'Region deleted successfully'})
 

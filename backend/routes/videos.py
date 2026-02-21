@@ -145,8 +145,23 @@ def _build_video_stats(db, video):
         'review_status': video.get('review_status', 'not_submitted'),
         'review_comment': video.get('review_comment', ''),
         'reviewed_by': str(video['reviewed_by']) if video.get('reviewed_by') else None,
+        'reviews': _format_reviews(video.get('reviews', [])),
+        'reviewers': [str(r) for r in video.get('reviewers', [])],
         'created_at': video['created_at'].isoformat()
     }
+
+
+def _format_reviews(reviews):
+    """Format review entries for API response."""
+    formatted = []
+    for r in reviews:
+        formatted.append({
+            'reviewer_id': str(r['reviewer_id']),
+            'action': r['action'],
+            'comment': r.get('comment', ''),
+            'reviewed_at': r['reviewed_at'].isoformat() if r.get('reviewed_at') else None
+        })
+    return formatted
 
 
 @videos_bp.route('/project/<project_id>', methods=['GET'])
@@ -220,21 +235,44 @@ def get_video(video_id):
         except Exception:
             pass
 
-    # Resolve subpart reviewer
-    reviewer_id = None
-    reviewer_details = None
+    # Resolve subpart reviewers (multiple)
+    subpart_reviewers = []
+    reviewer_details_list = []
     if video.get('subpart_id'):
         subpart = current_app.db.subparts.find_one({'_id': video['subpart_id']})
-        if subpart and subpart.get('reviewer'):
-            reviewer_id = str(subpart['reviewer'])
-            rev_user = current_app.db.users.find_one({'_id': subpart['reviewer']}, {'password_hash': 0})
-            if rev_user:
-                reviewer_details = {
-                    'id': str(rev_user['_id']),
-                    'username': rev_user['username'],
-                    'full_name': rev_user.get('full_name', ''),
-                    'avatar_color': rev_user.get('avatar_color', '#4A90D9')
-                }
+        if subpart:
+            # Support both single reviewer and multiple reviewers
+            reviewers_list = subpart.get('reviewers', [])
+            if not reviewers_list and subpart.get('reviewer'):
+                reviewers_list = [subpart['reviewer']]
+            
+            for rev_id in reviewers_list:
+                subpart_reviewers.append(str(rev_id))
+                rev_user = current_app.db.users.find_one({'_id': rev_id}, {'password_hash': 0})
+                if rev_user:
+                    reviewer_details_list.append({
+                        'id': str(rev_user['_id']),
+                        'username': rev_user['username'],
+                        'full_name': rev_user.get('full_name', ''),
+                        'avatar_color': rev_user.get('avatar_color', '#4A90D9')
+                    })
+
+    # Format individual reviews with user details
+    reviews_with_details = []
+    for r in video.get('reviews', []):
+        rev_user = current_app.db.users.find_one({'_id': r['reviewer_id']}, {'password_hash': 0})
+        reviews_with_details.append({
+            'reviewer_id': str(r['reviewer_id']),
+            'action': r['action'],
+            'comment': r.get('comment', ''),
+            'reviewed_at': r['reviewed_at'].isoformat() if r.get('reviewed_at') else None,
+            'reviewer_details': {
+                'id': str(rev_user['_id']),
+                'username': rev_user['username'],
+                'full_name': rev_user.get('full_name', ''),
+                'avatar_color': rev_user.get('avatar_color', '#4A90D9')
+            } if rev_user else None
+        })
 
     return jsonify({
         'id': str(video['_id']),
@@ -257,8 +295,12 @@ def get_video(video_id):
         'review_status': video.get('review_status', 'not_submitted'),
         'review_comment': video.get('review_comment', ''),
         'reviewed_by': str(video['reviewed_by']) if video.get('reviewed_by') else None,
-        'reviewer_id': reviewer_id,
-        'reviewer_details': reviewer_details,
+        'reviews': reviews_with_details,
+        'subpart_reviewers': subpart_reviewers,
+        'reviewer_details_list': reviewer_details_list,
+        # Legacy single reviewer support
+        'reviewer_id': subpart_reviewers[0] if subpart_reviewers else None,
+        'reviewer_details': reviewer_details_list[0] if reviewer_details_list else None,
         'segments': segments_data,
         'created_at': video['created_at'].isoformat()
     })
@@ -278,8 +320,14 @@ def update_video(video_id):
         return jsonify({'error': 'Video not found'}), 404
 
     update_fields = {}
+    
+    # Track if content-related fields are being changed (should reset approval)
+    content_changed = False
+    content_fields = ['duration', 'status', 'current_step', 'width', 'height']
+    
     if 'duration' in data:
         update_fields['duration'] = float(data['duration'])
+        content_changed = True
     if 'status' in data:
         update_fields['status'] = data['status']
     if 'current_step' in data:
@@ -298,6 +346,13 @@ def update_video(video_id):
         update_fields['review_comment'] = data['review_comment']
     if 'annotators' in data:
         update_fields['annotators'] = [ObjectId(a) for a in data['annotators'] if a]
+
+    # If video was approved and content changed, reset to not_submitted
+    # (except when explicitly setting review_status)
+    if video.get('review_status') == 'approved' and content_changed and 'review_status' not in data:
+        update_fields['review_status'] = 'not_submitted'
+        update_fields['reviews'] = []
+        update_fields['review_comment'] = 'Auto-reset: Content modified after approval'
 
     update_fields['updated_at'] = datetime.now(timezone.utc)
 
@@ -352,11 +407,14 @@ def submit_for_review(video_id):
     if not video:
         return jsonify({'error': 'Video not found'}), 404
 
+    # Clear all previous reviews when re-submitting
     current_app.db.videos.update_one(
         {'_id': ObjectId(video_id)},
         {'$set': {
             'review_status': 'pending_review',
             'review_comment': '',
+            'reviews': [],  # Clear individual reviews
+            'reviewed_by': None,
             'updated_at': datetime.now(timezone.utc)
         }}
     )
@@ -367,7 +425,7 @@ def submit_for_review(video_id):
 @videos_bp.route('/<video_id>/review', methods=['POST'])
 @token_required
 def review_video(video_id):
-    """Reviewer approves or rejects a video."""
+    """Reviewer approves or rejects a video (multi-reviewer with consensus)."""
     data = request.get_json()
     if not data or 'action' not in data:
         return jsonify({'error': 'Action is required (approve/reject)'}), 400
@@ -384,22 +442,310 @@ def review_video(video_id):
     if not video:
         return jsonify({'error': 'Video not found'}), 404
 
-    review_status = 'approved' if action == 'approve' else 'rejected'
     comment = data.get('comment', '')
+    reviewer_id = request.current_user['_id']
+    now = datetime.now(timezone.utc)
+
+    # Get existing reviews
+    reviews = video.get('reviews', [])
+    
+    # Remove any existing review from this reviewer (allows changing vote)
+    reviews = [r for r in reviews if r['reviewer_id'] != reviewer_id]
+    
+    # Add new review
+    reviews.append({
+        'reviewer_id': reviewer_id,
+        'action': action,
+        'comment': comment,
+        'reviewed_at': now
+    })
+
+    # Get required reviewers from subpart
+    required_reviewers = []
+    if video.get('subpart_id'):
+        subpart = current_app.db.subparts.find_one({'_id': video['subpart_id']})
+        if subpart:
+            required_reviewers = subpart.get('reviewers', [])
+            if not required_reviewers and subpart.get('reviewer'):
+                required_reviewers = [subpart['reviewer']]
+
+    # Calculate consensus status
+    review_status = _calculate_consensus_status(reviews, required_reviewers)
+    
+    # Get latest comment from most recent review
+    latest_comment = reviews[-1]['comment'] if reviews else ''
 
     current_app.db.videos.update_one(
         {'_id': ObjectId(video_id)},
         {'$set': {
             'review_status': review_status,
-            'review_comment': comment,
-            'reviewed_by': request.current_user['_id'],
-            'reviewed_at': datetime.now(timezone.utc),
+            'review_comment': latest_comment,
+            'reviews': reviews,
+            'reviewed_by': reviewer_id,
+            'reviewed_at': now,
+            'updated_at': now
+        }}
+    )
+
+    return jsonify({
+        'message': f'Your review recorded: {action}',
+        'review_status': review_status,
+        'reviews': _format_reviews(reviews),
+        'your_action': action
+    })
+
+
+def _calculate_consensus_status(reviews, required_reviewers):
+    """
+    Calculate the overall review status based on consensus rules:
+    - If any reviewer rejects: 'rejected'
+    - If all required reviewers approve: 'approved'
+    - Otherwise: 'in_review' (partial approvals)
+    """
+    if not reviews:
+        return 'pending_review'
+    
+    # Check for any rejections
+    rejections = [r for r in reviews if r['action'] == 'reject']
+    if rejections:
+        return 'rejected'
+    
+    # Check for approvals
+    approvals = [r for r in reviews if r['action'] == 'approve']
+    
+    # If we have required reviewers, check if all have approved
+    if required_reviewers:
+        required_set = set(required_reviewers) if isinstance(required_reviewers[0], ObjectId) else set(ObjectId(r) for r in required_reviewers)
+        approved_set = set(r['reviewer_id'] for r in approvals)
+        
+        if required_set.issubset(approved_set):
+            return 'approved'
+        elif approvals:
+            return 'in_review'  # Some approved but not all required
+        else:
+            return 'pending_review'
+    else:
+        # No specific required reviewers, any approval counts
+        return 'approved' if approvals else 'pending_review'
+
+
+@videos_bp.route('/<video_id>/revoke-approval', methods=['POST'])
+@token_required
+def revoke_approval(video_id):
+    """Revoke approval status (admin/reviewer can cancel approval)."""
+    try:
+        video = current_app.db.videos.find_one({'_id': ObjectId(video_id)})
+    except Exception:
+        return jsonify({'error': 'Invalid video ID'}), 400
+
+    if not video:
+        return jsonify({'error': 'Video not found'}), 404
+
+    data = request.get_json() or {}
+    reason = data.get('reason', 'Approval revoked')
+
+    # Clear reviews and reset status
+    current_app.db.videos.update_one(
+        {'_id': ObjectId(video_id)},
+        {'$set': {
+            'review_status': 'not_submitted',
+            'review_comment': reason,
+            'reviews': [],
+            'reviewed_by': None,
             'updated_at': datetime.now(timezone.utc)
         }}
     )
 
     return jsonify({
-        'message': f'Video {review_status}',
-        'review_status': review_status,
-        'review_comment': comment
+        'message': 'Approval revoked',
+        'review_status': 'not_submitted'
     })
+
+
+@videos_bp.route('/<video_id>/withdraw-review', methods=['POST'])
+@token_required
+def withdraw_review(video_id):
+    """Reviewer withdraws their own review."""
+    try:
+        video = current_app.db.videos.find_one({'_id': ObjectId(video_id)})
+    except Exception:
+        return jsonify({'error': 'Invalid video ID'}), 400
+
+    if not video:
+        return jsonify({'error': 'Video not found'}), 404
+
+    reviewer_id = request.current_user['_id']
+    reviews = video.get('reviews', [])
+    
+    # Remove this reviewer's review
+    reviews = [r for r in reviews if r['reviewer_id'] != reviewer_id]
+
+    # Get required reviewers and recalculate status
+    required_reviewers = []
+    if video.get('subpart_id'):
+        subpart = current_app.db.subparts.find_one({'_id': video['subpart_id']})
+        if subpart:
+            required_reviewers = subpart.get('reviewers', [])
+            if not required_reviewers and subpart.get('reviewer'):
+                required_reviewers = [subpart['reviewer']]
+
+    review_status = _calculate_consensus_status(reviews, required_reviewers)
+
+    current_app.db.videos.update_one(
+        {'_id': ObjectId(video_id)},
+        {'$set': {
+            'review_status': review_status,
+            'reviews': reviews,
+            'updated_at': datetime.now(timezone.utc)
+        }}
+    )
+
+    return jsonify({
+        'message': 'Your review has been withdrawn',
+        'review_status': review_status,
+        'reviews': _format_reviews(reviews)
+    })
+
+
+@videos_bp.route('/qc-stats', methods=['GET'])
+@token_required
+def get_qc_stats():
+    """Get quality control statistics across all videos"""
+    db = current_app.db
+    
+    # Get all videos with their status
+    videos = list(db.videos.find({}, {
+        'project_id': 1, 'subpart_id': 1, 'original_name': 1,
+        'review_status': 1, 'reviews': 1, 'status': 1, 'created_at': 1
+    }))
+    
+    # Get all projects for names
+    projects = {str(p['_id']): p for p in db.projects.find({}, {'name': 1})}
+    
+    # Get all subparts for names
+    subparts = {str(s['_id']): s for s in db.subparts.find({}, {'name': 1, 'reviewers': 1})}
+    
+    # Get all users for names
+    users = {str(u['_id']): u for u in db.users.find({}, {'username': 1, 'full_name': 1, 'avatar_color': 1})}
+    
+    # Calculate statistics
+    stats = {
+        'total_videos': len(videos),
+        'by_status': {
+            'pending': 0,
+            'approved': 0,
+            'rejected': 0,
+            'in_review': 0
+        },
+        'by_project': {},
+        'by_user': {},  # New: stats by user
+        'recent_reviews': [],
+        'pending_reviews': []
+    }
+    
+    for video in videos:
+        review_status = video.get('review_status', 'pending')
+        
+        # Count by status
+        if review_status in stats['by_status']:
+            stats['by_status'][review_status] += 1
+        else:
+            stats['by_status']['pending'] += 1
+        
+        # Count by project
+        project_id = str(video.get('project_id', ''))
+        project_name = projects.get(project_id, {}).get('name', 'Unknown')
+        if project_name not in stats['by_project']:
+            stats['by_project'][project_name] = {'total': 0, 'approved': 0, 'rejected': 0, 'pending': 0, 'in_review': 0}
+        stats['by_project'][project_name]['total'] += 1
+        if review_status in stats['by_project'][project_name]:
+            stats['by_project'][project_name][review_status] += 1
+        
+        # Collect reviews with details and count by user
+        for review in video.get('reviews', []):
+            reviewer_id = str(review.get('reviewer_id', ''))
+            reviewer = users.get(reviewer_id, {})
+            reviewer_name = reviewer.get('full_name') or reviewer.get('username', 'Unknown')
+            reviewer_color = reviewer.get('avatar_color', '#4A90D9')
+            # Note: individual review uses 'action' field (approve/reject), not 'status'
+            review_action = review.get('action', 'pending')
+            
+            # Count by user
+            if reviewer_id not in stats['by_user']:
+                stats['by_user'][reviewer_id] = {
+                    'id': str(reviewer_id),
+                    'name': reviewer_name,
+                    'color': reviewer_color,
+                    'total_reviews': 0,
+                    'approved': 0,
+                    'rejected': 0
+                }
+            stats['by_user'][reviewer_id]['total_reviews'] += 1
+            if review_action == 'approve':
+                stats['by_user'][reviewer_id]['approved'] += 1
+            elif review_action == 'reject':
+                stats['by_user'][reviewer_id]['rejected'] += 1
+            
+            stats['recent_reviews'].append({
+                'video_id': str(video['_id']),
+                'video_name': video.get('original_name', 'Unknown'),
+                'project_name': project_name,
+                'reviewer_name': reviewer_name,
+                'reviewer_color': reviewer_color,
+                'status': review_action,  # Use action value (approve/reject)
+                'reviewed_at': review.get('reviewed_at').isoformat() if review.get('reviewed_at') else None
+            })
+        
+        # Collect videos pending review
+        if review_status in ['pending', 'in_review']:
+            subpart_id = str(video.get('subpart_id', ''))
+            subpart = subparts.get(subpart_id, {})
+            required_reviewers = [str(r) for r in subpart.get('reviewers', [])]
+            reviewed_by = [str(r.get('reviewer_id', '')) for r in video.get('reviews', [])]
+            pending_reviewers = [uid for uid in required_reviewers if uid not in reviewed_by]
+            
+            # Build pending reviewers list
+            reviewer_names = []
+            for uid in pending_reviewers:
+                user = users.get(str(uid), {})
+                reviewer_names.append({
+                    'id': str(uid),
+                    'name': user.get('full_name') or user.get('username', 'Unknown'),
+                    'color': user.get('avatar_color', '#4A90D9')
+                })
+            
+            # Add to pending reviews if:
+            # - There are specific pending reviewers, OR
+            # - The video is pending/in_review and has no required reviewers (needs any reviewer)
+            if pending_reviewers or (not required_reviewers and review_status in ['pending', 'in_review']):
+                stats['pending_reviews'].append({
+                    'video_id': str(video['_id']),
+                    'video_name': video.get('original_name', 'Unknown'),
+                    'project_name': project_name,
+                    'subpart_name': subpart.get('name', 'Unknown'),
+                    'pending_reviewers': reviewer_names if reviewer_names else [{'id': '', 'name': 'Any reviewer', 'color': '#64748b'}],
+                    'created_at': video.get('created_at').isoformat() if video.get('created_at') else None
+                })
+    
+    # Sort recent reviews by date (newest first)
+    stats['recent_reviews'] = sorted(
+        stats['recent_reviews'],
+        key=lambda x: x.get('reviewed_at') or '',
+        reverse=True
+    )[:50]  # Limit to 50 most recent
+    
+    # Sort pending reviews by date (oldest first - needs attention)
+    stats['pending_reviews'] = sorted(
+        stats['pending_reviews'],
+        key=lambda x: x.get('created_at') or '',
+        reverse=False
+    )[:50]  # Limit to 50
+    
+    # Convert by_user dict to sorted list
+    stats['by_user'] = sorted(
+        list(stats['by_user'].values()),
+        key=lambda x: x.get('total_reviews', 0),
+        reverse=True
+    )
+    
+    return jsonify(stats)

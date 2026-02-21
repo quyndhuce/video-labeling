@@ -48,10 +48,27 @@ export interface SubPart {
   assigned_user_details?: User[];
   reviewer?: string;
   reviewer_details?: User;
+  // Multi-reviewer support
+  reviewers?: string[];
+  reviewer_details_list?: User[];
   order: number;
   status: string;
   video_count?: number;
   created_at: string;
+}
+
+export interface ReviewEntry {
+  reviewer_id: string;
+  action: 'approve' | 'reject';
+  comment?: string;
+  reviewed_at: string;
+}
+
+export interface ReviewWithDetails {
+  reviewer: User;
+  action: 'approve' | 'reject';
+  comment?: string;
+  reviewed_at: string;
 }
 
 export interface VideoItem {
@@ -77,6 +94,11 @@ export interface VideoItem {
   reviewed_by?: string;
   reviewer_id?: string;
   reviewer_details?: User;
+  // Multi-reviewer fields
+  reviews?: ReviewEntry[];
+  reviews_with_details?: ReviewWithDetails[];
+  subpart_reviewers?: string[];
+  reviewer_details_list?: User[];
   segments_count?: number;
   objects_count?: number;
   captions_count?: number;

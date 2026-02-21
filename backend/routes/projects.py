@@ -26,6 +26,7 @@ def serialize_subpart(subpart):
         'description': subpart.get('description', ''),
         'assigned_users': [str(uid) for uid in subpart.get('assigned_users', [])],
         'reviewer': str(subpart['reviewer']) if subpart.get('reviewer') else None,
+        'reviewers': [str(rid) for rid in subpart.get('reviewers', [])],
         'order': subpart.get('order', 0),
         'status': subpart.get('status', 'pending'),
         'created_at': subpart['created_at'].isoformat()
@@ -126,7 +127,7 @@ def get_project(project_id):
                     'avatar_color': user.get('avatar_color', '#4A90D9')
                 })
         sp_data['video_count'] = current_app.db.videos.count_documents({'subpart_id': ObjectId(sp['_id'])})
-        # Get reviewer details
+        # Get reviewer details (legacy single reviewer)
         if sp.get('reviewer'):
             reviewer = current_app.db.users.find_one({'_id': sp['reviewer']}, {'password_hash': 0})
             if reviewer:
@@ -136,6 +137,18 @@ def get_project(project_id):
                     'full_name': reviewer.get('full_name', ''),
                     'avatar_color': reviewer.get('avatar_color', '#4A90D9')
                 }
+        # Get multiple reviewers details
+        sp_data['reviewers'] = [str(rid) for rid in sp.get('reviewers', [])]
+        sp_data['reviewer_details_list'] = []
+        for rid in sp.get('reviewers', []):
+            reviewer = current_app.db.users.find_one({'_id': rid}, {'password_hash': 0})
+            if reviewer:
+                sp_data['reviewer_details_list'].append({
+                    'id': str(reviewer['_id']),
+                    'username': reviewer['username'],
+                    'full_name': reviewer.get('full_name', ''),
+                    'avatar_color': reviewer.get('avatar_color', '#4A90D9')
+                })
         proj_data['subparts'].append(sp_data)
 
     # Get videos
@@ -242,12 +255,21 @@ def create_subpart(project_id):
         except Exception:
             pass
 
+    # Process multiple reviewers
+    reviewers = []
+    for rid in data.get('reviewers', []):
+        try:
+            reviewers.append(ObjectId(rid))
+        except Exception:
+            pass
+
     subpart = {
         'project_id': ObjectId(project_id),
         'name': data['name'],
         'description': data.get('description', ''),
         'assigned_users': assigned_users,
         'reviewer': ObjectId(data['reviewer']) if data.get('reviewer') else None,
+        'reviewers': reviewers,
         'order': next_order,
         'status': 'pending',
         'created_at': datetime.now(timezone.utc),
@@ -287,6 +309,8 @@ def update_subpart(project_id, subpart_id):
         update_fields['assigned_users'] = [ObjectId(uid) for uid in data['assigned_users']]
     if 'reviewer' in data:
         update_fields['reviewer'] = ObjectId(data['reviewer']) if data['reviewer'] else None
+    if 'reviewers' in data:
+        update_fields['reviewers'] = [ObjectId(rid) for rid in data['reviewers']]
     if 'order' in data:
         update_fields['order'] = data['order']
     update_fields['updated_at'] = datetime.now(timezone.utc)

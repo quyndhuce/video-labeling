@@ -83,6 +83,31 @@
         </button>
       </div>
     </mat-tab>
+
+    <!-- General Tab -->
+    <mat-tab label="General">
+      <div class="settings-section">
+        <h3 class="section-title">Timezone</h3>
+        <p class="section-desc">Configure timezone for displaying dates and times.</p>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Timezone</mat-label>
+          <mat-select [(ngModel)]="form.timezone">
+            <mat-option value="Asia/Ho_Chi_Minh">Vietnam (UTC+7)</mat-option>
+            <mat-option value="Asia/Bangkok">Thailand (UTC+7)</mat-option>
+            <mat-option value="Asia/Singapore">Singapore (UTC+8)</mat-option>
+            <mat-option value="Asia/Tokyo">Japan (UTC+9)</mat-option>
+            <mat-option value="Asia/Shanghai">China (UTC+8)</mat-option>
+            <mat-option value="Europe/London">UK (UTC+0/+1)</mat-option>
+            <mat-option value="Europe/Paris">France (UTC+1/+2)</mat-option>
+            <mat-option value="America/New_York">US Eastern (UTC-5/-4)</mat-option>
+            <mat-option value="America/Los_Angeles">US Pacific (UTC-8/-7)</mat-option>
+            <mat-option value="UTC">UTC</mat-option>
+          </mat-select>
+          <mat-icon matPrefix>schedule</mat-icon>
+        </mat-form-field>
+      </div>
+    </mat-tab>
   </mat-tab-group>
 </mat-dialog-content>
 <mat-dialog-actions align="end">

@@ -29,6 +29,7 @@ def create_app():
     from routes.tags import tags_bp
     from routes.settings import settings_bp
     from routes.categories import categories_bp
+    from routes.knowledge_base import knowledge_base_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(projects_bp, url_prefix='/api/projects')
@@ -38,6 +39,7 @@ def create_app():
     app.register_blueprint(tags_bp, url_prefix='/api/tags')
     app.register_blueprint(settings_bp, url_prefix='/api/settings')
     app.register_blueprint(categories_bp, url_prefix='/api/categories')
+    app.register_blueprint(knowledge_base_bp, url_prefix='/api/knowledge-base')
 
     # Serve uploaded files
     @app.route('/uploads/<path:filename>')

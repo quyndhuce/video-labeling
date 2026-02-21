@@ -34,6 +34,48 @@
   height: 28px;
 }
 
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    color: #8b95a5;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+
+    &:hover {
+      color: #e7eaed;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    &.active {
+      color: #3b82f6;
+      background: rgba(59, 130, 246, 0.1);
+    }
+  }
+}
+
 .nav-right {
   display: flex;
   align-items: center;

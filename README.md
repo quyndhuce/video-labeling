@@ -522,3 +522,476 @@ This project is developed for internal research and annotation purposes at **AIR
 <p align="center">
   Built with ❤️ at <a href="https://www.facebook.com/profile.php?id=61563435713112"><strong>AIRC</strong></a> — for video AI research
 </p>
+
+
+Đây là schema đánh nhãn đầy đủ cho dataset video captioning du lịch Hà Nội của bạn:
+
+## 📋 Schema đánh nhãn tổng thể
+
+### **Metadata cơ bản (Video-level)**
+
+```json
+{
+  "video_id": "HN_0001",
+  "filename": "van_mieu_morning_001.mp4",
+  "duration": 45.5,  // seconds
+  "fps": 30,
+  "resolution": "1920x1080",
+  "recording_date": "2024-03-15",
+  "recording_time": "08:30:00",
+  "weather": "sunny/cloudy/rainy",
+  "location": {
+    "heritage_site": "Văn Miếu - Quốc Tử Giám",
+    "address": "58 Quốc Tử Giám, Đống Đa, Hà Nội",
+    "gps": {
+      "latitude": 21.0285,
+      "longitude": 105.8355
+    },
+    "heritage_type": "temple/pagoda/museum/historical_site/landscape"
+  }
+}
+```
+
+---
+
+## 1️⃣ **Video Caption** (quan trọng nhất)
+
+### **Full Video Caption**
+```json
+{
+  "captions": {
+    "vietnamese": {
+      "short": "Du khách tham quan Văn Miếu vào buổi sáng",  // 10-15 từ
+      "medium": "Một nhóm du khách đang dạo quanh khuôn viên Văn Miếu - Quốc Tử Giám, ngắm nhìn các bia tiến sĩ và kiến trúc cổ kính từ thời Lý",  // 20-30 từ
+      "long": "Video ghi lại cảnh tượng buổi sáng thanh bình tại Văn Miếu - Quốc Tử Giám, di tích lịch sử nổi tiếng của Hà Nội. Du khách từ nhiều nơi đến tham quan, chụp ảnh bên các bia đá ghi tên các tiến sĩ thời xưa. Kiến trúc mang đậm phong cách thời Lý-Trần với mái ngói cong, cột trụ gỗ chạm khắc tinh xảo. Không gian yên tĩnh, cây cối xanh mát tạo bầu không khí trang nghiêm."  // 50+ từ
+    },
+    "english": {
+      "short": "Tourists visiting Temple of Literature in the morning",
+      "medium": "A group of tourists exploring the Temple of Literature complex, admiring the doctoral stele and ancient architecture from the Ly Dynasty",
+      "long": "The video captures a peaceful morning scene at the Temple of Literature (Van Mieu - Quoc Tu Giam), a renowned historical site in Hanoi. Visitors from various places come to explore and photograph the stone steles inscribed with names of doctoral graduates from ancient times. The architecture showcases the distinctive Ly-Tran Dynasty style with curved tile roofs and intricately carved wooden pillars. The serene atmosphere with lush greenery creates a solemn ambiance."
+    }
+  },
+  "caption_type": "descriptive/narrative/instructional",
+  "cultural_significance": "Văn Miếu là nơi thờ Khổng Tử và là trường đại học đầu tiên của Việt Nam, tượng trưng cho truyền thống trọng học của dân tộc"
+}
+```
+
+---
+
+## 2️⃣ **Temporal Segmentation** (phân đoạn video)
+
+```json
+{
+  "segments": [
+    {
+      "segment_id": "seg_001",
+      "start_time": 0.0,
+      "end_time": 8.5,
+      "keyframes": [0.0, 4.2, 8.5],  // timestamp của các frame đại diện
+      "scene_type": "establishing_shot/close_up/panorama/action",
+      "caption_vi": "Camera pan qua cổng chính Văn Miếu với hai con rồng đá hai bên",
+      "caption_en": "Camera pans across the main gate of Temple of Literature with two stone dragons on either side",
+      "primary_activity": "camera_movement",
+      "objects_present": ["gate", "dragon_statue", "walls"]
+    },
+    {
+      "segment_id": "seg_002", 
+      "start_time": 8.5,
+      "end_time": 18.3,
+      "keyframes": [8.5, 13.0, 18.3],
+      "scene_type": "action",
+      "caption_vi": "Du khách chụp ảnh bên các bia tiến sĩ",
+      "caption_en": "Tourists taking photos next to doctoral steles",
+      "primary_activity": "photography",
+      "objects_present": ["tourists", "stone_steles", "turtles"]
+    }
+  ]
+}
+```
+
+---
+
+## 3️⃣ **Object Detection & Segmentation**
+
+### **Frame-level annotations** (mỗi 1-2 giây hoặc keyframes)
+
+```json
+{
+  "frame_annotations": [
+    {
+      "frame_id": "frame_0042",
+      "timestamp": 4.2,
+      "objects": [
+        {
+          "object_id": "obj_001",
+          "category": "architecture",
+          "class": "gate",
+          "specific_name": "Văn Miếu Môn",
+          "bounding_box": {
+            "x": 320,
+            "y": 180,
+            "width": 640,
+            "height": 480,
+            "format": "xywh"  // hoặc xyxy, polygon cho segmentation
+          },
+          "segmentation_mask": "masks/frame_0042_obj_001.png",  // binary mask
+          "confidence": 0.95,
+          
+          // Mô tả đối tượng
+          "description_vi": "Cổng chính Văn Miếu Môn với kiến trúc 3 tầng mái cong, ngói âm dương xen kẽ, hai bên có tường thành cao",
+          "description_en": "Main gate of Van Mieu with three-tiered curved roofs, alternating yin-yang tiles, flanked by high walls",
+          
+          // Thuộc tính
+          "attributes": {
+            "color": "red_brown",
+            "material": "wood_brick",
+            "condition": "well_preserved",
+            "era": "Lý Dynasty (reconstructed)",
+            "architectural_style": "Confucian temple architecture"
+          },
+          
+          // Tri thức văn hóa
+          "cultural_knowledge": {
+            "historical_significance": "Cổng được xây dựng năm 1070, là lối vào chính của ngôi đền thờ Khổng Tử đầu tiên tại Việt Nam",
+            "symbolism": "Ba tầng mái tượng trưng cho Tam tài: Thiên, Địa, Nhân",
+            "cultural_context": "Theo phong tục, học sinh thường đến lễ trước khi thi cử",
+            "related_entities": ["Confucius", "Lý Thánh Tông", "Quốc Tử Giám"]
+          }
+        },
+        
+        {
+          "object_id": "obj_002",
+          "category": "artifact",
+          "class": "stone_stele",
+          "specific_name": "Bia tiến sĩ",
+          "bounding_box": {...},
+          "segmentation_mask": "masks/frame_0042_obj_002.png",
+          
+          "description_vi": "Bia đá đặt trên lưng rùa, khắc tên các tiến sĩ khoa thi năm 1442",
+          "description_en": "Stone stele mounted on turtle pedestal, inscribed with names of doctoral graduates from 1442 examination",
+          
+          "attributes": {
+            "material": "bluestone",
+            "height_cm": 180,
+            "inscription_year": 1442,
+            "dynasty": "Lê Dynasty"
+          },
+          
+          "cultural_knowledge": {
+            "historical_significance": "Một trong 82 bia tiến sĩ được UNESCO công nhận là Di sản Tư liệu Thế giới",
+            "symbolism": "Rùa tượng trưng cho sự trường tồn của tri thức",
+            "related_entities": ["Lê Dynasty", "Imperial Examination System"]
+          }
+        },
+        
+        {
+          "object_id": "obj_003",
+          "category": "people",
+          "class": "tourist",
+          "count": 3,
+          "bounding_box": {...},
+          "activity": "taking_photo",
+          "pose": "standing",
+          "attributes": {
+            "age_group": "adult",
+            "group_type": "family"
+          }
+        },
+        
+        {
+          "object_id": "obj_004",
+          "category": "nature",
+          "class": "tree",
+          "specific_name": "Cây đa cổ thụ",
+          "bounding_box": {...},
+          "attributes": {
+            "estimated_age_years": 200,
+            "height_meters": 15
+          },
+          "cultural_knowledge": {
+            "significance": "Cây đa thường được trồng ở đình, chùa, mang ý nghĩa tâm linh"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## 4️⃣ **Contextual Knowledge** (Video-level)
+
+```json
+{
+  "heritage_knowledge": {
+    "site_name": "Văn Miếu - Quốc Tử Giám",
+    "unesco_status": "World Heritage Tentative List",
+    
+    "historical_context": {
+      "built_year": 1070,
+      "built_by": "Emperor Lý Thánh Tông",
+      "original_purpose": "Temple dedicated to Confucius",
+      "evolution": [
+        {
+          "year": 1070,
+          "event": "Văn Miếu được xây dựng"
+        },
+        {
+          "year": 1076,
+          "event": "Quốc Tử Giám được thành lập - trường đại học đầu tiên"
+        },
+        {
+          "year": 1484,
+          "event": "Bắt đầu dựng bia tiến sĩ"
+        }
+      ]
+    },
+    
+    "architectural_features": {
+      "layout": "5 courtyards following Confucian principles",
+      "style": "Traditional Vietnamese temple architecture with Chinese influence",
+      "notable_structures": [
+        "Văn Miếu Môn (Main Gate)",
+        "Đại Trung Môn (Great Middle Gate)",
+        "Khuê Văn Các (Constellation of Literature Pavilion)",
+        "Thiên Quang Tỉnh (Well of Heavenly Clarity)",
+        "82 Doctoral Steles",
+        "Đại Thành sanctuary"
+      ]
+    },
+    
+    "cultural_significance": {
+      "role": "Symbol of Vietnamese education and Confucian values",
+      "traditions": [
+        "Students visit before important exams",
+        "Graduation photo location",
+        "Calligraphy events during Tet"
+      ],
+      "cultural_values": "Respect for knowledge, teachers, and scholarly achievement"
+    },
+    
+    "related_entities": {
+      "people": ["Confucius", "Lý Thánh Tông", "Chu Văn An"],
+      "concepts": ["Imperial Examination", "Confucianism", "Scholarly tradition"],
+      "other_sites": ["Quốc Tử Giám Huế", "Văn Miếu Bắc Ninh"]
+    }
+  },
+  
+  "tourist_information": {
+    "visiting_hours": "08:00 - 17:00 daily",
+    "entrance_fee": "30,000 VND",
+    "best_time_to_visit": "Early morning or late afternoon",
+    "photography_allowed": true,
+    "dress_code": "Respectful attire recommended"
+  }
+}
+```
+
+---
+
+## 5️⃣ **Activity & Event Annotations**
+
+```json
+{
+  "activities": [
+    {
+      "activity_id": "act_001",
+      "start_time": 8.5,
+      "end_time": 15.2,
+      "activity_type": "photography",
+      "description_vi": "Du khách chụp ảnh kỷ niệm",
+      "description_en": "Tourists taking souvenir photos",
+      "participants": ["tourists"],
+      "objects_involved": ["camera", "smartphone", "stele"]
+    },
+    {
+      "activity_id": "act_002",
+      "start_time": 20.0,
+      "end_time": 28.5,
+      "activity_type": "worship",
+      "description_vi": "Người dân thắp hương cầu may trong kỳ thi",
+      "description_en": "Locals burning incense for good luck in exams",
+      "cultural_context": "Traditional practice before examinations",
+      "participants": ["worshippers"],
+      "objects_involved": ["incense", "altar"]
+    }
+  ],
+  
+  "events": {
+    "special_event": null,  // hoặc "Tet Calligraphy Festival" nếu có
+    "seasonal_context": "Spring - cherry blossoms blooming"
+  }
+}
+```
+
+---
+
+## 6️⃣ **Audio/Ambient Information** (nếu có)
+
+```json
+{
+  "audio": {
+    "ambient_sounds": ["temple_bell", "tourist_chatter", "birds", "footsteps"],
+    "narration": false,
+    "background_music": false,
+    "notable_sounds": [
+      {
+        "timestamp": 12.5,
+        "sound": "temple_bell",
+        "description": "Tiếng chuông chùa vang lên"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 7️⃣ **Quality Metrics**
+
+```json
+{
+  "quality_assessment": {
+    "video_quality": "high/medium/low",
+    "lighting": "good/acceptable/poor",
+    "stability": "stable/shaky",
+    "occlusion_level": "none/partial/heavy",
+    "crowd_density": "empty/sparse/moderate/crowded",
+    "annotation_confidence": 0.9,
+    "annotator_id": "annotator_005",
+    "annotation_time_minutes": 45,
+    "review_status": "approved/pending/rejected",
+    "reviewer_id": "reviewer_002"
+  }
+}
+```
+
+---
+
+## 8️⃣ **Multi-lingual Support**
+
+```json
+{
+  "languages": {
+    "primary": "vietnamese",
+    "available": ["vietnamese", "english"],
+    "cultural_terms": [
+      {
+        "vietnamese": "tiến sĩ",
+        "english": "doctoral graduate",
+        "explanation": "Scholars who passed the highest level of imperial examinations",
+        "transliteration": "tien si"
+      },
+      {
+        "vietnamese": "Khổng Tử",
+        "english": "Confucius",
+        "explanation": "Chinese philosopher, founder of Confucianism",
+        "transliteration": "Khong Tu"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 📊 Annotation Tools đề xuất
+
+### **Video Annotation:**
+- **CVAT** (Computer Vision Annotation Tool) - free, open-source
+- **Labelbox** - có free tier
+- **Label Studio** - open-source, customizable
+
+### **Object Detection/Segmentation:**
+- **CVAT** - hỗ trợ bounding box, polygon, segmentation
+- **Roboflow** - dễ dùng, có labeling assistance
+
+### **Caption Annotation:**
+- Custom web interface (đơn giản hơn)
+- Google Sheets/Airtable (cho giai đoạn đầu)
+- Label Studio (có thể custom cho caption)
+
+---
+
+## 👥 Workflow đánh nhãn
+
+### **Phase 1: Video-level (nhanh)**
+1. Metadata cơ bản
+2. Full video caption (3 versions)
+3. Contextual knowledge
+4. Quality check
+
+### **Phase 2: Temporal segmentation**
+1. Chia scenes
+2. Keyframe selection
+3. Segment captions
+
+### **Phase 3: Object annotation** (tốn thời gian nhất)
+1. Bounding boxes
+2. Segmentation masks
+3. Object descriptions
+4. Cultural knowledge
+
+### **Phase 4: Review & QC**
+1. Cross-check consistency
+2. Cultural accuracy review
+3. Language quality check
+
+---
+
+## 💡 Tips để tăng efficiency
+
+### **1. Prioritization:**
+- Annotate đầy đủ nhất ~500 videos "core" (heritage sites chính)
+- 1000 videos: annotations cơ bản (caption + objects)
+- 500 videos: minimal annotations (caption only)
+
+### **2. Semi-automation:**
+- Dùng pre-trained models để pre-label objects (YOLO, SAM)
+- Human review và correct
+- Tiết kiệm 40-60% thời gian
+
+### **3. Crowdsourcing strategy:**
+- Video caption: có thể crowdsource (nhưng cần QC kỹ)
+- Object detection: semi-auto + expert review
+- Cultural knowledge: PHẢI có experts
+
+### **4. Quality control:**
+- Inter-annotator agreement: ~10% videos được label bởi 2+ người
+- Expert review: 100% cultural knowledge
+- Automatic checks: caption length, object count consistency
+
+---
+
+## 📁 File Structure đề xuất
+
+```
+dataset/
+├── videos/
+│   ├── raw/
+│   │   └── HN_0001.mp4
+│   └── processed/
+│       └── HN_0001_720p.mp4
+├── annotations/
+│   ├── video_level/
+│   │   └── HN_0001.json
+│   ├── segments/
+│   │   └── HN_0001_segments.json
+│   ├── objects/
+│   │   └── HN_0001_objects.json
+│   └── knowledge/
+│       └── heritage_knowledge_base.json
+├── masks/
+│   └── HN_0001/
+│       ├── frame_0042_obj_001.png
+│       └── ...
+├── keyframes/
+│   └── HN_0001/
+│       ├── frame_0000.jpg
+│       └── ...
+└── metadata/
+    ├── dataset_statistics.json
+    ├── split_info.json (train/val/test)
+    └── annotation_guidelines.pdf
+``` 

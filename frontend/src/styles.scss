@@ -90,11 +90,32 @@ html, body {
   --mdc-filled-text-field-caret-color: #3b82f6;
   --mdc-filled-text-field-container-color: rgba(255, 255, 255, 0.05);
   --mdc-filled-text-field-hover-container-color: rgba(255, 255, 255, 0.08);
+}
 
-  // Fix floating label background for outlined variant (prevents overlap with placeholder)
-  .mat-mdc-text-field-wrapper.mdc-text-field--outlined .mdc-notched-outline--upgraded .mdc-floating-label--float-above {
+// Fix floating label for outlined text field - ensure label floats and doesn't overlap placeholder
+.mat-mdc-form-field {
+  // Force label to always float (since we use placeholders)
+  .mdc-text-field--outlined .mdc-notched-outline .mdc-floating-label {
+    transform: translateY(-34.75px) scale(0.75) !important;
     background: #1e2432;
     padding: 0 4px;
+  }
+
+  // Open the notch for the label
+  .mdc-text-field--outlined .mdc-notched-outline .mdc-notched-outline__notch {
+    border-top: none;
+  }
+
+  // Textarea label fix
+  .mdc-text-field--outlined.mdc-text-field--textarea .mdc-notched-outline .mdc-floating-label {
+    transform: translateY(-28px) scale(0.75) !important;
+  }
+}
+
+// Alternative: Hide label completely and only show placeholder
+.mat-mdc-form-field.hide-label {
+  .mdc-floating-label {
+    display: none !important;
   }
 }
 

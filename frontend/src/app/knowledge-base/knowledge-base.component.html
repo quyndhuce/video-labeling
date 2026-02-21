@@ -1,0 +1,409 @@
+<div class="knowledge-base-container">
+  <!-- Navbar -->
+  <mat-toolbar class="navbar">
+    <div class="nav-left">
+      <button mat-icon-button (click)="goBack()">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <div class="logo">
+        <mat-icon class="logo-icon">psychology</mat-icon>
+        <span>Knowledge Base</span>
+      </div>
+    </div>
+    <div class="nav-right">
+      <button mat-icon-button (click)="openSettings()" matTooltip="Settings">
+        <mat-icon>settings</mat-icon>
+      </button>
+      <button mat-button [matMenuTriggerFor]="userMenu" class="user-menu-btn">
+        <div class="user-avatar">{{ user()?.username?.charAt(0)?.toUpperCase() }}</div>
+        <span>{{ user()?.username }}</span>
+        <mat-icon>arrow_drop_down</mat-icon>
+      </button>
+      <mat-menu #userMenu="matMenu">
+        <button mat-menu-item (click)="openSettings()">
+          <mat-icon>settings</mat-icon>
+          <span>Settings</span>
+        </button>
+        <button mat-menu-item (click)="logout()">
+          <mat-icon>logout</mat-icon>
+          <span>Logout</span>
+        </button>
+      </mat-menu>
+    </div>
+  </mat-toolbar>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Header -->
+    <div class="page-header">
+      <div class="header-left">
+        <h1>Knowledge Base Management</h1>
+        <p>Manage hierarchical knowledge for video captioning</p>
+      </div>
+      <button mat-raised-button color="primary" (click)="openCreateDialog()">
+        <mat-icon>add</mat-icon>
+        Add Root Node
+      </button>
+    </div>
+
+    <!-- Search & Filters -->
+    <div class="search-bar">
+      <mat-form-field appearance="outline" class="search-input">
+        <mat-label>Search Knowledge Base</mat-label>
+        <input matInput [(ngModel)]="searchQuery" (keyup.enter)="searchNodes()" placeholder="Search by name, description, tags...">
+        <mat-icon matPrefix>search</mat-icon>
+        @if (searchQuery) {
+          <button matSuffix mat-icon-button (click)="clearSearch()">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="filter-select">
+        <mat-label>Filter by Type</mat-label>
+        <mat-select [(ngModel)]="filterType" (selectionChange)="searchNodes()">
+          <mat-option value="">All Types</mat-option>
+          @for (type of kbTypes; track type.value) {
+            <mat-option [value]="type.value">
+              <mat-icon [style.color]="type.color">{{ type.icon }}</mat-icon>
+              {{ type.label }}
+            </mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <div class="view-toggle">
+        <button mat-icon-button [class.active]="viewMode === 'tree'" (click)="viewMode = 'tree'; clearSearch()" matTooltip="Tree View">
+          <mat-icon>account_tree</mat-icon>
+        </button>
+        <button mat-icon-button [class.active]="viewMode === 'list'" (click)="viewMode = 'list'" matTooltip="List View">
+          <mat-icon>list</mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    @if (loading) {
+      <div class="loading-container">
+        <mat-spinner diameter="40"></mat-spinner>
+        <p>Loading Knowledge Base...</p>
+      </div>
+    }
+
+    <!-- Tree View -->
+    @if (!loading && viewMode === 'tree') {
+      <div class="kb-tree">
+        @if (kbTree.length === 0) {
+          <div class="empty-state">
+            <mat-icon>folder_open</mat-icon>
+            <h3>No Knowledge Base Nodes</h3>
+            <p>Create your first knowledge base node to get started</p>
+            <button mat-raised-button color="primary" (click)="openCreateDialog()">
+              <mat-icon>add</mat-icon>
+              Create First Node
+            </button>
+          </div>
+        }
+        @for (node of kbTree; track node.id) {
+          <ng-container *ngTemplateOutlet="treeNode; context: { $implicit: node, level: 0 }"></ng-container>
+        }
+      </div>
+    }
+
+    <!-- List View -->
+    @if (!loading && viewMode === 'list') {
+      <div class="kb-list">
+        @if (kbTree.length === 0) {
+          <div class="empty-state">
+            <mat-icon>search_off</mat-icon>
+            <h3>No Results Found</h3>
+            <p>Try different search terms or filters</p>
+            <button mat-stroked-button (click)="clearSearch()">
+              <mat-icon>refresh</mat-icon>
+              Clear Filters
+            </button>
+          </div>
+        }
+        @for (node of kbTree; track node.id) {
+          <div class="kb-list-item">
+            <div class="list-item-icon" [style.background]="getTypeColor(node.type) + '22'" [style.color]="getTypeColor(node.type)">
+              <mat-icon>{{ getTypeIcon(node.type) }}</mat-icon>
+            </div>
+            <div class="list-item-content">
+              <div class="list-item-header">
+                <span class="node-name">{{ node.name }}</span>
+                <span class="node-id">{{ node.id }}</span>
+              </div>
+              @if (node.description) {
+                <p class="node-description">{{ node.description }}</p>
+              }
+              <div class="node-meta">
+                <span class="type-badge" [style.background]="getTypeColor(node.type) + '22'" [style.color]="getTypeColor(node.type)">
+                  {{ getTypeLabel(node.type) }}
+                </span>
+                @if (node.parent_id) {
+                  <span class="parent-badge">
+                    <mat-icon>subdirectory_arrow_right</mat-icon>
+                    {{ getParentName(node.parent_id) }}
+                  </span>
+                }
+                @for (tag of node.tags.slice(0, 3); track tag) {
+                  <span class="tag-badge">{{ tag }}</span>
+                }
+                @if (node.tags.length > 3) {
+                  <span class="more-tags">+{{ node.tags.length - 3 }}</span>
+                }
+              </div>
+            </div>
+            <div class="list-item-actions">
+              <button mat-icon-button matTooltip="Add Child" (click)="openCreateDialog(node.id)">
+                <mat-icon>add_circle_outline</mat-icon>
+              </button>
+              <button mat-icon-button matTooltip="Edit" (click)="openEditDialog(node)">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button matTooltip="Delete" (click)="deleteNode(node)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Tree Node Template -->
+<ng-template #treeNode let-node let-level="level">
+  <div class="tree-node" [style.paddingLeft]="(level * 24) + 'px'">
+    <div class="tree-node-header" [class.expanded]="isExpanded(node)">
+      @if (node.children && node.children.length > 0) {
+        <button mat-icon-button class="expand-btn" (click)="toggleNode(node)">
+          <mat-icon>{{ isExpanded(node) ? 'expand_more' : 'chevron_right' }}</mat-icon>
+        </button>
+      } @else {
+        <span class="expand-spacer"></span>
+      }
+      <div class="node-icon" [style.background]="getTypeColor(node.type) + '22'" [style.color]="getTypeColor(node.type)">
+        <mat-icon>{{ getTypeIcon(node.type) }}</mat-icon>
+      </div>
+      <div class="node-info">
+        <div class="node-title">
+          <span class="name">{{ node.name }}</span>
+          <span class="id">{{ node.id }}</span>
+        </div>
+        @if (node.description) {
+          <p class="description">{{ node.description }}</p>
+        }
+        <div class="node-badges">
+          <span class="type-chip" [style.background]="getTypeColor(node.type) + '22'" [style.color]="getTypeColor(node.type)">
+            {{ getTypeLabel(node.type) }}
+          </span>
+          @for (tag of node.tags.slice(0, 3); track tag) {
+            <span class="tag-chip">{{ tag }}</span>
+          }
+          @if (node.tags.length > 3) {
+            <span class="more-chips">+{{ node.tags.length - 3 }}</span>
+          }
+        </div>
+      </div>
+      <div class="node-actions">
+        <button mat-icon-button matTooltip="Add Child" (click)="openCreateDialog(node.id); $event.stopPropagation()">
+          <mat-icon>add_circle_outline</mat-icon>
+        </button>
+        <button mat-icon-button matTooltip="Edit" (click)="openEditDialog(node); $event.stopPropagation()">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button matTooltip="Delete" (click)="deleteNode(node); $event.stopPropagation()">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </div>
+    </div>
+    @if (isExpanded(node) && node.children) {
+      <div class="tree-children">
+        @for (child of node.children; track child.id) {
+          <ng-container *ngTemplateOutlet="treeNode; context: { $implicit: child, level: level + 1 }"></ng-container>
+        }
+      </div>
+    }
+  </div>
+</ng-template>
+
+<!-- Node Dialog Overlay -->
+@if (showNodeDialog) {
+  <div class="dialog-overlay" (click)="closeDialog()">
+    <div class="dialog-container dialog-wide" (click)="$event.stopPropagation()">
+      <div class="dialog-header">
+        <h2>{{ editingNode ? 'Edit KB Node' : 'Create KB Node' }}</h2>
+        <button mat-icon-button (click)="closeDialog()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      <div class="dialog-content">
+        <!-- Name (Bilingual) -->
+        <div class="bilingual-section">
+          <label class="section-label">Name *</label>
+          <div class="bilingual-row">
+            <div class="lang-field">
+              <span class="lang-badge">🇬🇧 EN</span>
+              <mat-form-field appearance="outline" class="full-width">
+                <input matInput [(ngModel)]="nodeForm.name" placeholder="Enter name in English">
+              </mat-form-field>
+              <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                      (click)="translateField('name', 'en_to_vi')" [disabled]="translating">
+                <mat-icon>south</mat-icon>
+              </button>
+            </div>
+            <div class="lang-field">
+              <span class="lang-badge">🇻🇳 VI</span>
+              <mat-form-field appearance="outline" class="full-width">
+                <input matInput [(ngModel)]="nodeForm.name_vi" placeholder="Nhập tên tiếng Việt">
+              </mat-form-field>
+              <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                      (click)="translateField('name', 'vi_to_en')" [disabled]="translating">
+                <mat-icon>north</mat-icon>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Type and Parent -->
+        <div class="form-row two-col">
+          <mat-form-field appearance="outline">
+            <mat-label>Type</mat-label>
+            <mat-select [(ngModel)]="nodeForm.type">
+              @for (type of kbTypes; track type.value) {
+                <mat-option [value]="type.value">
+                  <mat-icon [style.color]="type.color">{{ type.icon }}</mat-icon>
+                  {{ type.label }}
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Parent Node</mat-label>
+            <mat-select [(ngModel)]="nodeForm.parent_id">
+              <mat-option [value]="null">None (Root Level)</mat-option>
+              @for (node of flattenedNodes; track node.id) {
+                @if (!editingNode || node.id !== editingNode.id) {
+                  <mat-option [value]="node.id">
+                    <span class="parent-option">
+                      <span class="indent" [style.paddingLeft]="(node.level || 0) * 16 + 'px'">
+                        @if (node.level && node.level > 0) {
+                          <span class="indent-line">{{ getIndent(node.level) }}</span>
+                        }
+                      </span>
+                      <mat-icon [style.color]="getTypeColor(node.type)" class="parent-icon">{{ getTypeIcon(node.type) }}</mat-icon>
+                      <span>{{ node.name }}</span>
+                    </span>
+                  </mat-option>
+                }
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <!-- Description (Bilingual) -->
+        <div class="bilingual-section">
+          <label class="section-label">Description</label>
+          <div class="bilingual-row">
+            <div class="lang-field">
+              <span class="lang-badge">🇬🇧 EN</span>
+              <mat-form-field appearance="outline" class="full-width">
+                <textarea matInput [(ngModel)]="nodeForm.description" rows="3" placeholder="Enter description"></textarea>
+              </mat-form-field>
+              <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                      (click)="translateField('description', 'en_to_vi')" [disabled]="translating">
+                <mat-icon>south</mat-icon>
+              </button>
+            </div>
+            <div class="lang-field">
+              <span class="lang-badge">🇻🇳 VI</span>
+              <mat-form-field appearance="outline" class="full-width">
+                <textarea matInput [(ngModel)]="nodeForm.description_vi" rows="3" placeholder="Nhập mô tả"></textarea>
+              </mat-form-field>
+              <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                      (click)="translateField('description', 'vi_to_en')" [disabled]="translating">
+                <mat-icon>north</mat-icon>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual Cues (Bilingual) -->
+        <div class="bilingual-section">
+          <label class="section-label">Visual Cues</label>
+          <div class="bilingual-row">
+            <div class="lang-field">
+              <span class="lang-badge">🇬🇧 EN</span>
+              <mat-form-field appearance="outline" class="full-width">
+                <textarea matInput [(ngModel)]="nodeForm.visual_cues" rows="2" placeholder="Describe visual characteristics"></textarea>
+              </mat-form-field>
+              <button mat-icon-button class="translate-btn" matTooltip="Translate EN → VI"
+                      (click)="translateField('visual_cues', 'en_to_vi')" [disabled]="translating">
+                <mat-icon>south</mat-icon>
+              </button>
+            </div>
+            <div class="lang-field">
+              <span class="lang-badge">🇻🇳 VI</span>
+              <mat-form-field appearance="outline" class="full-width">
+                <textarea matInput [(ngModel)]="nodeForm.visual_cues_vi" rows="2" placeholder="Mô tả đặc điểm thị giác"></textarea>
+              </mat-form-field>
+              <button mat-icon-button class="translate-btn" matTooltip="Translate VI → EN"
+                      (click)="translateField('visual_cues', 'vi_to_en')" [disabled]="translating">
+                <mat-icon>north</mat-icon>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tags -->
+        <div class="form-row tags-row">
+          <label class="tags-label">Tags</label>
+          <div class="tags-input-container">
+            <div class="tags-list">
+              @for (tag of nodeForm.tags; track tag) {
+                <span class="tag-item">
+                  {{ tag }}
+                  <mat-icon (click)="removeTag(tag)">close</mat-icon>
+                </span>
+              }
+              <input class="tag-input" [(ngModel)]="newTag" (keyup.enter)="addTag()" placeholder="Add tag...">
+            </div>
+          </div>
+        </div>
+
+        <!-- Related KB Nodes -->
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Related KB Nodes</mat-label>
+            <mat-select [(ngModel)]="nodeForm.related_kb_ids" multiple>
+              @for (node of flattenedNodes; track node.id) {
+                @if (!editingNode || node.id !== editingNode.id) {
+                  <mat-option [value]="node.id">
+                    <span class="parent-option">
+                      <span class="indent" [style.paddingLeft]="(node.level || 0) * 12 + 'px'">
+                        @if (node.level && node.level > 0) {
+                          <span class="indent-line">{{ getIndent(node.level) }}</span>
+                        }
+                      </span>
+                      <mat-icon [style.color]="getTypeColor(node.type)" class="parent-icon">{{ getTypeIcon(node.type) }}</mat-icon>
+                      <span>{{ node.name }}</span>
+                    </span>
+                  </mat-option>
+                }
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button mat-stroked-button (click)="closeDialog()">Cancel</button>
+        <button mat-raised-button color="primary" (click)="saveNode()" [disabled]="translating">
+          @if (translating) {
+            <mat-icon class="spin">sync</mat-icon>
+          }
+          {{ editingNode ? 'Update' : 'Create' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
