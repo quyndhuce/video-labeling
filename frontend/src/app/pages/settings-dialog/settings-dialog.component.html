@@ -64,6 +64,10 @@
           </mat-select>
         </mat-form-field>
 
+        <p class="prompt-hint">
+          Combine prompt placeholders: <code>{{'{{captions}}'}}</code> (visual &amp; contextual captions)
+          and <code>{{'{{kb_context}}'}}</code> (knowledge base facts, empty when none).
+        </p>
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Gemini Combine Prompt</mat-label>
           <textarea matInput [(ngModel)]="form.gemini_combine_prompt" rows="5" cdkTextareaAutosize></textarea>

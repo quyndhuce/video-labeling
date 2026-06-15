@@ -89,6 +89,7 @@ export class SettingsDialogComponent implements OnInit {
     const defaults = this.settingsService.getDefaults();
     this.form.translate_prompt_en_to_vi = defaults.translate_prompt_en_to_vi;
     this.form.translate_prompt_vi_to_en = defaults.translate_prompt_vi_to_en;
+    this.form.gemini_combine_prompt = defaults.gemini_combine_prompt;
   }
 
   save(): void {

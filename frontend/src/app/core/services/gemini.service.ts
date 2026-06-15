@@ -134,30 +134,15 @@ export class GeminiService {
       throw new Error('Gemini API key not configured. Open Settings to add your key.');
     }
 
-    // Build prompt that combines visual description with knowledge
-    const lang = isVi ? 'Vietnamese' : 'English';
+    // Build prompt from the user-editable Settings template.
+    // {{captions}} = visual/contextual captions; {{kb_context}} = knowledge base facts (empty if none).
     const captionsText = captions.filter(c => !c.startsWith('[Knowledge') && !c.startsWith('[Ngữ cảnh')).join('\n');
-    
-    let prompt: string;
-    if (kbContext && kbContext.trim()) {
-      prompt = `You are creating a rich, contextual description for a video segment in ${lang}.
 
-Visual Description:
-${captionsText}
-
-Domain Knowledge Context (from knowledge base hierarchy):
-${kbContext}
-
-Instructions:
-- Combine the visual description with the domain knowledge to create a comprehensive, coherent description
-- Use the knowledge context to add relevant technical or domain-specific details that enrich the visual description
-- The final description should flow naturally and not feel like separate pieces
-- Keep it concise but informative
-- Output only the combined description in ${lang}, nothing else`;
-    } else {
-      // No KB context, just combine captions
-      prompt = `Combine the following descriptions into a single, coherent ${lang} description. Only return the combined text, nothing else.\n\n${captionsText}`;
-    }
+    const fallbackPrompt = 'Combine the following descriptions into a single, coherent description. Only return the combined text, nothing else.\n\nInput Captions:\n{{captions}}\n\nKnowledge Base Facts:\n{{kb_context}}';
+    const promptTemplate = settings.gemini_combine_prompt || fallbackPrompt;
+    const prompt = promptTemplate
+      .replace(/\{\{captions\}\}/g, captionsText)
+      .replace(/\{\{kb_context\}\}/g, (kbContext && kbContext.trim()) ? kbContext.trim() : '');
 
     const url = `${this.API_BASE}/${settings.gemini_model}:generateContent?key=${settings.gemini_api_key}`;
     const response = await fetch(url, {
