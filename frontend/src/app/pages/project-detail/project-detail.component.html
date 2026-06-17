@@ -22,7 +22,7 @@
       <button mat-icon-button matTooltip="Tải video đã đánh nhãn + annotation" (click)="exportLabeledVideosByProject()" *ngIf="project" [disabled]="isExporting">
         <mat-icon>{{ isExporting ? 'hourglass_empty' : 'movie' }}</mat-icon>
       </button>
-      <button mat-icon-button matTooltip="Tải tất cả clip đã segment và có kb (Không cắt)" (click)="exportSegmentedKbByProject()" *ngIf="project" [disabled]="isExporting">
+      <button mat-icon-button matTooltip="Tải tất cả clip đã segment (Không cắt)" (click)="exportSegmentedKbByProject()" *ngIf="project" [disabled]="isExporting">
         <mat-icon>{{ isExporting ? 'hourglass_empty' : 'library_add_check' }}</mat-icon>
       </button>
     </div>

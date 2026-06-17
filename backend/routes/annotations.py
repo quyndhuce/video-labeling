@@ -1599,21 +1599,9 @@ def _video_valid_full_captions(db, video):
     return True
 
 
-def _video_valid_kb_ids(db, video):
-    """Valid when review_status is ok, the video has >=1 segment, and every
-    segment caption has a non-empty knowledge_base_ids list."""
-    if video.get('review_status') not in ['pending_review', 'approved']:
-        return False
-    segments = list(db.video_segments.find({'video_id': video['_id']}))
-    if not segments:
-        return False
-    for seg in segments:
-        seg_caption = db.captions.find_one({'segment_id': seg['_id'], 'region_id': None})
-        if not seg_caption:
-            return False
-        if not seg_caption.get('knowledge_base_ids'):
-            return False
-    return True
+def _video_has_segments(db, video):
+    """Valid as long as the video has at least one segment."""
+    return db.video_segments.count_documents({'video_id': video['_id']}) > 0
 
 
 def process_batch_labeled_videos_export(app, task_id, project_id, subpart_id=None):
@@ -1623,10 +1611,10 @@ def process_batch_labeled_videos_export(app, task_id, project_id, subpart_id=Non
 
 
 def process_batch_segmented_kb_export(app, task_id, project_id, subpart_id=None):
-    """Background thread: ZIP of original (uncut) videos whose segments all have
-    knowledge_base_ids attached, plus metadata.json with segment timestamps."""
+    """Background thread: ZIP of original (uncut) videos that have at least one
+    segment, plus metadata.json with segment timestamps."""
     _run_labeled_videos_export(app, task_id, project_id, subpart_id,
-                               _video_valid_kb_ids, 'segmented_kb_videos')
+                               _video_has_segments, 'segmented_kb_videos')
 
 
 def _run_labeled_videos_export(app, task_id, project_id, subpart_id, is_video_valid, label):
