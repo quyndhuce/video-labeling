@@ -1135,18 +1135,22 @@ def process_batch_segmented_export(app, task_id, project_id, subpart_id=None):
                     if not seg_caption:
                         is_valid = False
                         break
-                    
+
+                    # Knowledge captions are sourced dynamically from the KB
+                    # (knowledge_base_ids), not the stale stored field. Mirror the
+                    # logic in /eligible-videos so export and eligibility agree.
+                    kdata = _fetch_knowledge_for_caption(db, seg_caption)
                     if not all([
                         seg_caption.get('contextual_caption'),
                         seg_caption.get('contextual_caption_vi'),
-                        seg_caption.get('knowledge_caption'),
-                        seg_caption.get('knowledge_caption_vi'),
+                        kdata['knowledge_en'],
+                        kdata['knowledge_vi'],
                         seg_caption.get('combined_caption'),
                         seg_caption.get('combined_caption_vi')
                     ]):
                         is_valid = False
                         break
-                        
+
                 if is_valid:
                     valid_videos.append(video)
             total_videos = len(valid_videos)
@@ -1570,8 +1574,67 @@ def _cleanup_exports(export_dir, db=None, max_age_hours=24):
             logger.warning(f"[Cleanup] Failed to purge old export_tasks: {e}")
 
 
+def _video_valid_full_captions(db, video):
+    """Valid when review_status is ok, the video has >=1 segment, and every
+    segment caption has all 6 caption fields (knowledge sourced from the KB)."""
+    if video.get('review_status') not in ['pending_review', 'approved']:
+        return False
+    segments = list(db.video_segments.find({'video_id': video['_id']}))
+    if not segments:
+        return False
+    for seg in segments:
+        seg_caption = db.captions.find_one({'segment_id': seg['_id'], 'region_id': None})
+        if not seg_caption:
+            return False
+        kdata = _fetch_knowledge_for_caption(db, seg_caption)
+        if not all([
+            seg_caption.get('contextual_caption'),
+            seg_caption.get('contextual_caption_vi'),
+            kdata['knowledge_en'],
+            kdata['knowledge_vi'],
+            seg_caption.get('combined_caption'),
+            seg_caption.get('combined_caption_vi')
+        ]):
+            return False
+    return True
+
+
+def _video_valid_kb_ids(db, video):
+    """Valid when review_status is ok, the video has >=1 segment, and every
+    segment caption has a non-empty knowledge_base_ids list."""
+    if video.get('review_status') not in ['pending_review', 'approved']:
+        return False
+    segments = list(db.video_segments.find({'video_id': video['_id']}))
+    if not segments:
+        return False
+    for seg in segments:
+        seg_caption = db.captions.find_one({'segment_id': seg['_id'], 'region_id': None})
+        if not seg_caption:
+            return False
+        if not seg_caption.get('knowledge_base_ids'):
+            return False
+    return True
+
+
 def process_batch_labeled_videos_export(app, task_id, project_id, subpart_id=None):
-    """Background thread: build ZIP of original videos that have segments + metadata.json."""
+    """Background thread: ZIP of original videos with all 6 caption fields filled."""
+    _run_labeled_videos_export(app, task_id, project_id, subpart_id,
+                               _video_valid_full_captions, 'labeled_videos')
+
+
+def process_batch_segmented_kb_export(app, task_id, project_id, subpart_id=None):
+    """Background thread: ZIP of original (uncut) videos whose segments all have
+    knowledge_base_ids attached, plus metadata.json with segment timestamps."""
+    _run_labeled_videos_export(app, task_id, project_id, subpart_id,
+                               _video_valid_kb_ids, 'segmented_kb_videos')
+
+
+def _run_labeled_videos_export(app, task_id, project_id, subpart_id, is_video_valid, label):
+    """Background thread: build ZIP of original videos passing is_video_valid + metadata.json.
+
+    is_video_valid(db, video) -> bool selects which videos are exported.
+    label is used for the zip filename and root folder name.
+    """
     tmp_dir = None
     with app.app_context():
         try:
@@ -1592,7 +1655,7 @@ def process_batch_labeled_videos_export(app, task_id, project_id, subpart_id=Non
                 )
                 return
 
-            zip_filename = f"labeled_videos_{project_id}_{int(time.time())}.zip"
+            zip_filename = f"{label}_{project_id}_{int(time.time())}.zip"
             zip_filepath = os.path.join(export_dir, zip_filename)
 
             query = {'project_id': ObjectId(project_id)}
@@ -1600,37 +1663,7 @@ def process_batch_labeled_videos_export(app, task_id, project_id, subpart_id=Non
                 query['subpart_id'] = ObjectId(subpart_id)
             videos = list(db.videos.find(query))
 
-            # Filter videos: must be pending_review or approved, and have all 6 caption fields filled for all segments
-            valid_videos = []
-            for video in videos:
-                if video.get('review_status') not in ['pending_review', 'approved']:
-                    continue
-                
-                segments = list(db.video_segments.find({'video_id': video['_id']}))
-                if not segments:
-                    continue
-
-                is_valid = True
-                for seg in segments:
-                    seg_caption = db.captions.find_one({'segment_id': seg['_id'], 'region_id': None})
-                    if not seg_caption:
-                        is_valid = False
-                        break
-                    
-                    if not all([
-                        seg_caption.get('contextual_caption'),
-                        seg_caption.get('contextual_caption_vi'),
-                        seg_caption.get('knowledge_caption'),
-                        seg_caption.get('knowledge_caption_vi'),
-                        seg_caption.get('combined_caption'),
-                        seg_caption.get('combined_caption_vi')
-                    ]):
-                        is_valid = False
-                        break
-                        
-                if is_valid:
-                    valid_videos.append(video)
-            
+            valid_videos = [v for v in videos if is_video_valid(db, v)]
             total_videos = len(valid_videos)
 
             # Empty case: still produce a valid zip with empty metadata
@@ -1656,7 +1689,7 @@ def process_batch_labeled_videos_export(app, task_id, project_id, subpart_id=Non
             subpart_map = {str(sp['_id']): sp.get('name', f"Subpart_{sp['_id']}") for sp in subparts}
 
             tmp_dir = tempfile.mkdtemp(prefix='batch_labeled_videos_')
-            root_folder = _sanitize_name(project.get('name', 'Project')) + '_labeled_videos'
+            root_folder = _sanitize_name(project.get('name', 'Project')) + '_' + label
             root_path = os.path.join(tmp_dir, root_folder)
             os.makedirs(root_path, exist_ok=True)
 
@@ -1856,6 +1889,89 @@ def check_labeled_videos_export(task_id):
 
 @annotations_bp.route('/export/labeled-videos/download/<task_id>', methods=['GET'])
 def download_labeled_videos_export(task_id):
+    try:
+        task = current_app.db.export_tasks.find_one({'_id': task_id})
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
+
+        if task.get('status') != 'completed':
+            return jsonify({'error': 'Task not completed yet'}), 400
+
+        file_path = task.get('file_path')
+        if not file_path or not os.path.exists(file_path):
+            return jsonify({'error': 'File not found on server'}), 404
+
+        filename = os.path.basename(file_path)
+        return send_file(file_path, as_attachment=True, download_name=filename)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============ SEGMENTED (UNCUT) VIDEOS WITH KNOWLEDGE BASE EXPORT ============
+# Same output as labeled-videos (full original videos + metadata.json, no ffmpeg
+# split), but only exports videos whose segments ALL have knowledge_base_ids.
+
+@annotations_bp.route('/export/project/<project_id>/segmented-kb/start', methods=['POST'])
+@token_required
+def start_segmented_kb_export(project_id):
+    """Start a background task to export uncut videos whose segments all have KB ids."""
+    try:
+        project = current_app.db.projects.find_one({'_id': ObjectId(project_id)})
+        if not project:
+            return jsonify({'error': 'Project not found'}), 404
+
+        subpart_id = request.args.get('subpart_id')
+
+        task_id = str(uuid.uuid4())
+        current_app.db.export_tasks.insert_one({
+            '_id': task_id,
+            'project_id': project_id,
+            'user_id': str(request.current_user['_id']),
+            'status': 'processing',
+            'progress': 0,
+            'file_path': None,
+            'created_at': datetime.now(timezone.utc),
+            'type': 'segmented_kb'
+        })
+
+        app = current_app._get_current_object()
+        thread = threading.Thread(
+            target=process_batch_segmented_kb_export,
+            args=(app, task_id, project_id, subpart_id)
+        )
+        thread.daemon = True
+        thread.start()
+
+        return jsonify({'task_id': task_id}), 200
+
+    except Exception as e:
+        logger.error(f"[SegmentedKbExport] Failed to start task: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@annotations_bp.route('/export/segmented-kb/status/<task_id>', methods=['GET'])
+@token_required
+def check_segmented_kb_export(task_id):
+    try:
+        task = current_app.db.export_tasks.find_one({'_id': task_id})
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
+
+        if task.get('user_id') != str(request.current_user['_id']):
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        return jsonify({
+            'task_id': task['_id'],
+            'status': task.get('status'),
+            'progress': task.get('progress', 0),
+            'error': task.get('error')
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@annotations_bp.route('/export/segmented-kb/download/<task_id>', methods=['GET'])
+def download_segmented_kb_export(task_id):
     try:
         task = current_app.db.export_tasks.find_one({'_id': task_id})
         if not task:

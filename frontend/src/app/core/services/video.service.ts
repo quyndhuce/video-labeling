@@ -209,6 +209,22 @@ export class VideoService {
     return `${this.ANNOTATIONS_API}/export/labeled-videos/download/${taskId}`;
   }
 
+  startSegmentedKbExport(projectId: string, subpartId?: string): Observable<{ task_id: string }> {
+    const url = `${this.ANNOTATIONS_API}/export/project/${projectId}/segmented-kb/start`
+      + (subpartId ? `?subpart_id=${subpartId}` : '');
+    return this.http.post<{ task_id: string }>(url, {});
+  }
+
+  checkSegmentedKbExportStatus(taskId: string): Observable<{ task_id: string; status: string; progress: number; error?: string }> {
+    return this.http.get<{ task_id: string; status: string; progress: number; error?: string }>(
+      `${this.ANNOTATIONS_API}/export/segmented-kb/status/${taskId}`
+    );
+  }
+
+  getSegmentedKbExportDownloadUrl(taskId: string): string {
+    return `${this.ANNOTATIONS_API}/export/segmented-kb/download/${taskId}`;
+  }
+
   // ---- DAM Auto-Caption (Video: 8 frames) ----
   generateCaption(frames: string[], maskImage: string, captionType: 'visual' | 'contextual'): Observable<{ caption: string; caption_type: string }> {
     return this.dam.generateCaption(frames, maskImage, captionType);

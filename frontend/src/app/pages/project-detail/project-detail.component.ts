@@ -1189,4 +1189,56 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
     });
   }
 
+  exportSegmentedKbByProject() {
+    if (!this.project || this.isExporting) return;
+
+    this.isExporting = true;
+    this.exportProgress = 0;
+    this.exportStatusText = 'Đang chuẩn bị video có Knowledge Base...';
+
+    this.videoService.startSegmentedKbExport(this.project.id).subscribe({
+      next: (res) => {
+        this.exportTaskId = res.task_id;
+        this.pollingSubscription = interval(3000).subscribe(() => {
+          this.checkSegmentedKbStatus(res.task_id);
+        });
+      },
+      error: (err) => {
+        this.isExporting = false;
+        this.snackBar.open('Lỗi khi bắt đầu export: ' + err.message, 'Đóng', { duration: 3000 });
+      }
+    });
+  }
+
+  checkSegmentedKbStatus(taskId: string) {
+    this.videoService.checkSegmentedKbExportStatus(taskId).subscribe({
+      next: (res) => {
+        this.exportProgress = res.progress || 0;
+
+        if (res.status === 'processing') {
+          this.exportStatusText = `Đang đóng gói video + annotation... ${res.progress}%`;
+        } else if (res.status === 'completed') {
+          this.exportStatusText = 'Hoàn tất! Bắt đầu tải file...';
+          this.isExporting = false;
+          if (this.pollingSubscription) this.pollingSubscription.unsubscribe();
+
+          const downloadUrl = this.videoService.getSegmentedKbExportDownloadUrl(taskId);
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = '';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else if (res.status === 'failed') {
+          this.exportStatusText = 'Lỗi export: ' + (res.error || 'Server error');
+          this.isExporting = false;
+          if (this.pollingSubscription) this.pollingSubscription.unsubscribe();
+          this.snackBar.open(this.exportStatusText, 'Đóng');
+        }
+      },
+      error: () => {}
+    });
+  }
+
 }
