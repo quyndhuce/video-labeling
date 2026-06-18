@@ -1210,6 +1210,40 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
     });
   }
 
+  exportSegmentedKbMetadataOnly() {
+    if (!this.project || this.isExporting) return;
+
+    const projectId = this.project.id;
+    this.isExporting = true;
+    this.exportProgress = 0;
+    this.exportStatusText = 'Đang tạo metadata...';
+
+    this.videoService.getSegmentedKbMetadata(projectId).subscribe({
+      next: (data) => {
+        this.isExporting = false;
+        this.exportStatusText = '';
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `metadata_${projectId}.json`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        this.snackBar.open(`Đã tải metadata.json — ${data.total_videos} video`, 'Đóng', { duration: 3000 });
+      },
+      error: (err) => {
+        this.isExporting = false;
+        this.exportStatusText = '';
+        this.snackBar.open('Lỗi tạo metadata: ' + err.message, 'Đóng', { duration: 3000 });
+      }
+    });
+  }
+
   checkSegmentedKbStatus(taskId: string) {
     this.videoService.checkSegmentedKbExportStatus(taskId).subscribe({
       next: (res) => {

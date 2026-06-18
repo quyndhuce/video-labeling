@@ -187,6 +187,66 @@ def _fetch_knowledge_for_caption(db, caption):
     }
 
 
+def _segment_kb_id(db, caption):
+    """Return the id (Mongo _id) of the first knowledge_base node attached to the
+    caption, or None when the segment is out of KB (no knowledge_base_ids)."""
+    kb_ids = caption.get('knowledge_base_ids') if caption else None
+    if not kb_ids:
+        return None
+    return str(kb_ids[0])
+
+
+def _build_segment_metadata(db, video, subpart_map):
+    """Build the per-video metadata dict shared by the labeled/segmented-kb
+    exports and the metadata-only endpoint. `path` is computed identically to
+    the ZIP layout (subpart/<sanitized video name>) so it maps to downloaded files."""
+    target_subpart_id = str(video.get('subpart_id', 'Unassigned'))
+    subpart_name = _sanitize_name(subpart_map.get(target_subpart_id, 'Unassigned'))
+    original_name = video.get('original_name') or video.get('filename')
+    base, ext = os.path.splitext(original_name)
+    safe_name = _sanitize_name(base) + (ext if ext else '')
+
+    segments = list(db.video_segments.find({'video_id': video['_id']}).sort('order', 1))
+    segments_info = []
+    for seg in segments:
+        seg_caption = db.captions.find_one({'segment_id': seg['_id'], 'region_id': None})
+        gt = {}
+        if seg_caption:
+            kdata = _fetch_knowledge_for_caption(db, seg_caption)
+            gt = {
+                'contextual_en': seg_caption.get('contextual_caption', ''),
+                'contextual_vi': seg_caption.get('contextual_caption_vi', ''),
+                'combined_en': seg_caption.get('combined_caption', ''),
+                'combined_vi': seg_caption.get('combined_caption_vi', ''),
+                'knowledge_en': kdata['knowledge_en'],
+                'knowledge_vi': kdata['knowledge_vi'],
+                'knowledge_graph_en': kdata['knowledge_graph_en'],
+                'knowledge_graph_vi': kdata['knowledge_graph_vi'],
+            }
+        segments_info.append({
+            'id': str(seg['_id']),
+            'name': seg.get('name', ''),
+            'kb_id': _segment_kb_id(db, seg_caption),
+            'start_time': seg['start_time'],
+            'end_time': seg['end_time'],
+            'duration': round(seg['end_time'] - seg['start_time'], 3),
+            'ground_truth_captions': {'segment_level': gt}
+        })
+
+    return {
+        'video_id': str(video['_id']),
+        'video_name': video.get('original_name', ''),
+        'subpart': subpart_map.get(target_subpart_id, 'Unassigned'),
+        'path': f"{subpart_name}/{safe_name}",
+        'duration': video.get('duration', 0),
+        'width': video.get('width', 0),
+        'height': video.get('height', 0),
+        'fps': video.get('fps', 0),
+        'total_segments': len(segments_info),
+        'segments': segments_info
+    }
+
+
 @annotations_bp.route('', methods=['POST'])
 @token_required
 def create_caption():
@@ -1280,6 +1340,7 @@ def process_batch_segmented_export(app, task_id, project_id, subpart_id=None):
                         segments_info.append({
                             'id': str(seg['_id']),
                             'name': seg.get('name', ''),
+                            'kb_id': _segment_kb_id(db, seg_caption),
                             'folder': seg_folder_name,
                             'start_time': seg['start_time'],
                             'end_time': seg['end_time'],
@@ -1710,50 +1771,7 @@ def _run_labeled_videos_export(app, task_id, project_id, subpart_id, is_video_va
                     dest_path = os.path.join(subpart_dir, safe_name)
                     shutil.copy(video_path, dest_path)
 
-                    # Build per-video metadata
-                    segments = list(
-                        db.video_segments.find({'video_id': video['_id']}).sort('order', 1)
-                    )
-                    segments_info = []
-                    for seg in segments:
-                        seg_caption = db.captions.find_one({
-                            'segment_id': seg['_id'],
-                            'region_id': None
-                        })
-                        gt = {}
-                        if seg_caption:
-                            kdata = _fetch_knowledge_for_caption(db, seg_caption)
-                            gt = {
-                                'contextual_en': seg_caption.get('contextual_caption', ''),
-                                'contextual_vi': seg_caption.get('contextual_caption_vi', ''),
-                                'combined_en': seg_caption.get('combined_caption', ''),
-                                'combined_vi': seg_caption.get('combined_caption_vi', ''),
-                                'knowledge_en': kdata['knowledge_en'],
-                                'knowledge_vi': kdata['knowledge_vi'],
-                                'knowledge_graph_en': kdata['knowledge_graph_en'],
-                                'knowledge_graph_vi': kdata['knowledge_graph_vi'],
-                            }
-                        segments_info.append({
-                            'id': str(seg['_id']),
-                            'name': seg.get('name', ''),
-                            'start_time': seg['start_time'],
-                            'end_time': seg['end_time'],
-                            'duration': round(seg['end_time'] - seg['start_time'], 3),
-                            'ground_truth_captions': {'segment_level': gt}
-                        })
-
-                    project_metadata['videos'].append({
-                        'video_id': str(video['_id']),
-                        'video_name': video.get('original_name', ''),
-                        'subpart': subpart_map.get(target_subpart_id, 'Unassigned'),
-                        'path': f"{subpart_name}/{safe_name}",
-                        'duration': video.get('duration', 0),
-                        'width': video.get('width', 0),
-                        'height': video.get('height', 0),
-                        'fps': video.get('fps', 0),
-                        'total_segments': len(segments_info),
-                        'segments': segments_info
-                    })
+                    project_metadata['videos'].append(_build_segment_metadata(db, video, subpart_map))
 
                     processed_count += 1
                     progress = int((processed_count / total_videos) * 90)
@@ -1975,4 +1993,45 @@ def download_segmented_kb_export(task_id):
         filename = os.path.basename(file_path)
         return send_file(file_path, as_attachment=True, download_name=filename)
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@annotations_bp.route('/export/project/<project_id>/segmented-kb/metadata', methods=['GET'])
+@token_required
+def export_segmented_kb_metadata(project_id):
+    """Return ONLY the metadata.json (no video files) for the segmented-kb export.
+
+    Synchronous (no task/poll). Includes every video with >=1 segment, each with
+    per-segment kb_id slug, start/end_time, duration and ground-truth captions.
+    The schema (and each video's `path`) matches the metadata.json bundled inside
+    the segmented-kb ZIP, so it lines up with videos already downloaded.
+    """
+    try:
+        db = current_app.db
+        project = db.projects.find_one({'_id': ObjectId(project_id)})
+        if not project:
+            return jsonify({'error': 'Project not found'}), 404
+
+        subpart_id = request.args.get('subpart_id')
+        query = {'project_id': ObjectId(project_id)}
+        if subpart_id:
+            query['subpart_id'] = ObjectId(subpart_id)
+        videos = list(db.videos.find(query))
+
+        valid_videos = [v for v in videos if _video_has_segments(db, v)]
+
+        subparts = list(db.subparts.find({'project_id': ObjectId(project_id)}))
+        subpart_map = {str(sp['_id']): sp.get('name', f"Subpart_{sp['_id']}") for sp in subparts}
+
+        metadata = {
+            'project_name': project.get('name', ''),
+            'project_id': str(project['_id']),
+            'export_date': datetime.now(timezone.utc).isoformat() + 'Z',
+            'total_videos': len(valid_videos),
+            'videos': [_build_segment_metadata(db, v, subpart_map) for v in valid_videos]
+        }
+        return jsonify(metadata), 200
+
+    except Exception as e:
+        logger.error(f"[SegmentedKbMetadata] {e}")
         return jsonify({'error': str(e)}), 500

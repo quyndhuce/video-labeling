@@ -225,6 +225,12 @@ export class VideoService {
     return `${this.ANNOTATIONS_API}/export/segmented-kb/download/${taskId}`;
   }
 
+  getSegmentedKbMetadata(projectId: string, subpartId?: string): Observable<any> {
+    const url = `${this.ANNOTATIONS_API}/export/project/${projectId}/segmented-kb/metadata`
+      + (subpartId ? `?subpart_id=${subpartId}` : '');
+    return this.http.get<any>(url);
+  }
+
   // ---- DAM Auto-Caption (Video: 8 frames) ----
   generateCaption(frames: string[], maskImage: string, captionType: 'visual' | 'contextual'): Observable<{ caption: string; caption_type: string }> {
     return this.dam.generateCaption(frames, maskImage, captionType);
