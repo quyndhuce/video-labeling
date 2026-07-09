@@ -845,7 +845,10 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
     this.dialog.open(BatchCaptionReviewDialogComponent, {
       width: '900px',
       maxWidth: '95vw',
-      data: { projectId: this.project.id }
+      data: {
+        projectId: this.project.id,
+        subpartId: this.selectedSubpart?.id || null
+      }
     });
   }
 

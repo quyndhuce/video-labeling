@@ -76,14 +76,30 @@ Return ONLY valid JSON:
 """
 
 
-def _iter_review_candidates(db, project_id, video_id=None):
+def _iter_review_candidates(db, project_id, video_id=None, subpart_id=None, video_start=None, video_end=None):
     """Yield (video, segment, region, caption) for every object-level caption
-    in the project that has a non-empty visual_caption. Segment-level captions
-    (region_id: None) have no visual_caption field and are never yielded."""
+    that matches the query. Filters by subpart_id and video range (video_start/video_end, 1-based index)
+    if specified."""
     query = {'project_id': ObjectId(project_id)}
     if video_id:
         query['_id'] = ObjectId(video_id)
-    videos = list(db.videos.find(query))
+    elif subpart_id:
+        query['subpart_id'] = ObjectId(subpart_id)
+
+    # Sort videos by created_at (descending) to match the UI listing order
+    videos_cursor = db.videos.find(query).sort('created_at', -1)
+    
+    if video_start is not None or video_end is not None:
+        videos = list(videos_cursor)
+        start = int(video_start) if video_start is not None else 1
+        end = int(video_end) if video_end is not None else len(videos)
+        
+        # Convert 1-based start/end to 0-based slice indexes
+        slice_start = max(0, start - 1)
+        slice_end = max(0, end)
+        videos = videos[slice_start:slice_end]
+    else:
+        videos = list(videos_cursor)
 
     for video in videos:
         segments = list(db.video_segments.find({'video_id': video['_id']}).sort('order', 1))
@@ -119,9 +135,19 @@ def _serialize_preview_item(video, segment, region, caption):
 def batch_review_preview():
     project_id = request.args.get('project_id')
     video_id = request.args.get('video_id')
+    subpart_id = request.args.get('subpart_id')
+    video_start = request.args.get('video_start')
+    video_end = request.args.get('video_end')
 
     if not project_id:
         return jsonify({'error': 'project_id is required'}), 400
+
+    try:
+        # Convert start/end to integers if present
+        start_idx = int(video_start) if video_start else None
+        end_idx = int(video_end) if video_end else None
+    except ValueError:
+        return jsonify({'error': 'video_start and video_end must be integers'}), 400
 
     try:
         db = current_app.db
@@ -131,14 +157,26 @@ def batch_review_preview():
 
         items = [
             _serialize_preview_item(video, segment, region, caption)
-            for video, segment, region, caption in _iter_review_candidates(db, project_id, video_id)
+            for video, segment, region, caption in _iter_review_candidates(
+                db, project_id, video_id, subpart_id, start_idx, end_idx
+            )
         ]
+
+        # Calculate total videos in the queried subset for frontend information
+        count_query = {'project_id': ObjectId(project_id)}
+        if video_id:
+            count_query['_id'] = ObjectId(video_id)
+        elif subpart_id:
+            count_query['subpart_id'] = ObjectId(subpart_id)
+        total_videos = db.videos.count_documents(count_query)
 
         return jsonify({
             'generated_at': datetime.now(timezone.utc).isoformat(),
             'project_id': project_id,
             'video_id': video_id,
+            'subpart_id': subpart_id,
             'total_items': len(items),
+            'total_videos': total_videos,
             'items': items,
         }), 200
     except Exception as e:

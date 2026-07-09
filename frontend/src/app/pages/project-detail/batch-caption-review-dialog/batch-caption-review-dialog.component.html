@@ -3,11 +3,32 @@
 <mat-dialog-content class="batch-review-content">
   <ng-container *ngIf="step === 'setup'">
     <p>
-      Scans every object-level caption in this project and lets Gemini correct captions that
+      Scans object-level captions in this project and lets Gemini correct captions that
       misidentify the labeled object, using the object's name and segment name as ground truth,
       then translates the fix to Vietnamese. Nothing is sent to Gemini until you review the
       preview below and approve it.
     </p>
+
+    <div *ngIf="data.subpartId" class="subpart-notice">
+      <mat-icon>folder</mat-icon>
+      <span>Filtering to active subpart level only.</span>
+    </div>
+
+    <div class="range-setup">
+      <h3>Optional: Limit Video Range</h3>
+      <p class="setup-subtext">Specify a 1-based index range of videos to load (e.g. videos 1 to 10). Leave empty to load all videos.</p>
+      <div class="range-inputs-row">
+        <mat-form-field appearance="outline">
+          <mat-label>Start Video Index</mat-label>
+          <input matInput type="number" [(ngModel)]="videoStart" placeholder="1" min="1">
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>End Video Index</mat-label>
+          <input matInput type="number" [(ngModel)]="videoEnd" placeholder="e.g. 10" min="1">
+        </mat-form-field>
+      </div>
+    </div>
+
     <button mat-raised-button color="primary" (click)="generatePreview()" [disabled]="loadingPreview">
       {{ loadingPreview ? 'Generating preview...' : 'Generate Preview' }}
     </button>
@@ -15,7 +36,11 @@
 
   <ng-container *ngIf="step === 'preview' && preview">
     <div class="preview-header">
-      <span>{{ preview.total_items }} object caption(s) found &mdash; {{ selectedCount }} selected</span>
+      <span>
+        {{ preview.total_items }} object caption(s) found
+        <ng-container *ngIf="totalVideos">&mdash; across {{ uniqueVideos.length }} video(s) (Range: {{ videoStart || 1 }} to {{ videoEnd || totalVideos }} of {{ totalVideos }})</ng-container>
+        &mdash; {{ selectedCount }} selected
+      </span>
       <button mat-button (click)="showRawJson = !showRawJson">
         {{ showRawJson ? 'Hide raw JSON' : 'View raw JSON' }}
       </button>

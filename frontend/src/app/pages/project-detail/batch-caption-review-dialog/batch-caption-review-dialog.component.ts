@@ -38,6 +38,11 @@ export class BatchCaptionReviewDialogComponent implements OnDestroy {
   uniqueVideos: { id: string; name: string }[] = [];
   filteredItems: any[] = [];
 
+  // Video range limits
+  videoStart: number | null = null;
+  videoEnd: number | null = null;
+  totalVideos: number | null = null;
+
   apiKey = '';
   model = 'gemini-2.5-flash';
   starting = false;
@@ -46,14 +51,20 @@ export class BatchCaptionReviewDialogComponent implements OnDestroy {
 
   constructor(
     private dialogRef: MatDialogRef<BatchCaptionReviewDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: { projectId: string },
+    @Inject(MAT_DIALOG_DATA) public data: { projectId: string; subpartId?: string | null },
     private videoService: VideoService,
     private snackBar: MatSnackBar
   ) {}
 
   generatePreview(): void {
     this.loadingPreview = true;
-    this.videoService.getBatchReviewPreview(this.data.projectId).subscribe({
+    this.videoService.getBatchReviewPreview(
+      this.data.projectId,
+      undefined,
+      this.data.subpartId || undefined,
+      this.videoStart !== null ? this.videoStart : undefined,
+      this.videoEnd !== null ? this.videoEnd : undefined
+    ).subscribe({
       next: (res) => {
         this.preview = res;
         this.selected = new Set(res.items.map(i => i.caption_id));
@@ -66,6 +77,7 @@ export class BatchCaptionReviewDialogComponent implements OnDestroy {
           }
         });
         this.uniqueVideos = Array.from(videoMap.entries()).map(([id, name]) => ({ id, name }));
+        this.totalVideos = res.total_videos || null;
         
         this.selectedVideoId = 'all';
         this.filteredItems = res.items;

@@ -189,7 +189,9 @@ export interface BatchReviewPreview {
   generated_at: string;
   project_id: string;
   video_id: string | null;
+  subpart_id?: string | null;
   total_items: number;
+  total_videos?: number;
   items: BatchReviewItem[];
 }
 

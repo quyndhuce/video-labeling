@@ -232,9 +232,18 @@ export class VideoService {
   }
 
   // ---- Gemini Batch Caption Review ----
-  getBatchReviewPreview(projectId: string, videoId?: string): Observable<BatchReviewPreview> {
-    const url = `${this.ANNOTATIONS_API}/batch-review/preview?project_id=${projectId}`
-      + (videoId ? `&video_id=${videoId}` : '');
+  getBatchReviewPreview(
+    projectId: string,
+    videoId?: string,
+    subpartId?: string,
+    videoStart?: number,
+    videoEnd?: number
+  ): Observable<BatchReviewPreview> {
+    let url = `${this.ANNOTATIONS_API}/batch-review/preview?project_id=${projectId}`;
+    if (videoId) url += `&video_id=${videoId}`;
+    if (subpartId) url += `&subpart_id=${subpartId}`;
+    if (videoStart !== undefined && videoStart !== null) url += `&video_start=${videoStart}`;
+    if (videoEnd !== undefined && videoEnd !== null) url += `&video_end=${videoEnd}`;
     return this.http.get<BatchReviewPreview>(url);
   }
 

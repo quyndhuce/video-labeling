@@ -85,3 +85,47 @@
   display: flex;
   gap: 8px;
 }
+
+.subpart-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #e3f2fd;
+  color: #0d47a1;
+  padding: 8px 16px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  font-weight: 500;
+  mat-icon {
+    font-size: 20px;
+    height: 20px;
+    width: 20px;
+  }
+}
+
+.range-setup {
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  background: #fafafa;
+  h3 {
+    margin: 0 0 8px 0;
+    font-size: 15px;
+    font-weight: 500;
+  }
+}
+
+.setup-subtext {
+  font-size: 13px;
+  color: #666;
+  margin: 0 0 16px 0;
+}
+
+.range-inputs-row {
+  display: flex;
+  gap: 16px;
+  mat-form-field {
+    width: 180px;
+  }
+}
