@@ -68,6 +68,7 @@
       <thead>
         <tr>
           <th></th>
+          <th>Type</th>
           <th>Video</th>
           <th>Segment</th>
           <th>Object</th>
@@ -79,11 +80,12 @@
         <tr *ngFor="let item of filteredItems" [class.ineligible-row]="!item.eligible">
           <td>
             <mat-checkbox *ngIf="item.eligible" [checked]="isSelected(item.caption_id!)" (change)="toggleItem(item.caption_id!)"></mat-checkbox>
-            <span *ngIf="!item.eligible" class="no-caption-badge" matTooltip="No visual caption yet — nothing for Gemini to review">n/a</span>
+            <span *ngIf="!item.eligible" class="no-caption-badge" matTooltip="No caption yet — nothing for Gemini to review">n/a</span>
           </td>
+          <td><span class="level-badge" [class.level-segment]="item.level === 'segment'">{{ item.level === 'segment' ? 'Segment' : 'Object' }}</span></td>
           <td>{{ item.video_name }}</td>
           <td>{{ item.segment_name }}</td>
-          <td>{{ item.object_label }}</td>
+          <td>{{ item.level === 'segment' ? '—' : item.object_label }}</td>
           <td>{{ item.current_visual_caption || '(no caption yet)' }}</td>
           <td>{{ item.current_visual_caption_vi || '(no caption yet)' }}</td>
         </tr>
@@ -122,6 +124,7 @@
       <thead>
         <tr>
           <th *ngIf="step === 'done'"></th>
+          <th>Type</th>
           <th>Segment</th>
           <th>Object</th>
           <th>Old caption (EN)</th>
@@ -136,8 +139,9 @@
               [checked]="isConfirmSelected(r.caption_id)" (change)="toggleConfirmItem(r.caption_id)"></mat-checkbox>
             <span *ngIf="r.applied" class="applied-badge">Applied ✓</span>
           </td>
+          <td><span class="level-badge" [class.level-segment]="r.level === 'segment'">{{ r.level === 'segment' ? 'Segment' : 'Object' }}</span></td>
           <td>{{ r.segment_name }}</td>
-          <td>{{ r.object_label }}</td>
+          <td>{{ r.level === 'segment' ? '—' : r.object_label }}</td>
           <td>{{ r.old.visual_caption }}</td>
           <td>{{ r.new?.visual_caption || '—' }}</td>
           <td>{{ r.status === 'ok' ? '✓' : r.error }}</td>

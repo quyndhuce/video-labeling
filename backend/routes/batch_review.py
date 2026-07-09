@@ -81,10 +81,12 @@ Return ONLY valid JSON:
 
 
 def _iter_review_candidates(db, project_id, video_id=None, subpart_id=None, video_start=None, video_end=None):
-    """Yield (video, segment, region, caption) for every object region that
-    matches the query, whether or not it has a caption yet. `caption` is None
-    when no caption doc exists for the region. Filters by subpart_id and video
-    range (video_start/video_end, 1-based index) if specified."""
+    """Yield ('segment' | 'object', video, segment, region, caption) for every
+    segment (its own contextual_caption) and every object region within it
+    (its visual_caption), whether or not a caption doc exists yet. `region` is
+    None for segment-level rows; `caption` is None when no caption doc exists.
+    Filters by subpart_id and video range (video_start/video_end, 1-based
+    index) if specified."""
     query = {'project_id': ObjectId(project_id)}
     if video_id:
         query['_id'] = ObjectId(video_id)
@@ -93,12 +95,12 @@ def _iter_review_candidates(db, project_id, video_id=None, subpart_id=None, vide
 
     # Sort videos by created_at (descending) to match the UI listing order
     videos_cursor = db.videos.find(query).sort('created_at', -1)
-    
+
     if video_start is not None or video_end is not None:
         videos = list(videos_cursor)
         start = int(video_start) if video_start is not None else 1
         end = int(video_end) if video_end is not None else len(videos)
-        
+
         # Convert 1-based start/end to 0-based slice indexes
         slice_start = max(0, start - 1)
         slice_end = max(0, end)
@@ -109,31 +111,50 @@ def _iter_review_candidates(db, project_id, video_id=None, subpart_id=None, vide
     for video in videos:
         segments = list(db.video_segments.find({'video_id': video['_id']}).sort('order', 1))
         for segment in segments:
+            segment_caption = db.captions.find_one({'segment_id': segment['_id'], 'region_id': None})
+            yield 'segment', video, segment, None, segment_caption
+
             regions = list(db.object_regions.find({'segment_id': segment['_id']}))
             for region in regions:
                 caption = db.captions.find_one({'region_id': region['_id']})
-                yield video, segment, region, caption
+                yield 'object', video, segment, region, caption
 
 
-def _serialize_preview_item(video, segment, region, caption):
-    visual_caption = caption.get('visual_caption', '') if caption else ''
-    visual_caption_vi = caption.get('visual_caption_vi', '') if caption else ''
+# Which caption doc field holds the reviewable English text / its Vietnamese
+# translation, per level. Object-level reviews visual_caption; segment-level
+# reviews contextual_caption (the scene-level description, not the KB-derived
+# knowledge_caption or the merged combined_caption).
+_CAPTION_FIELDS = {
+    'object': ('visual_caption', 'visual_caption_vi'),
+    'segment': ('contextual_caption', 'contextual_caption_vi'),
+}
+
+
+def _serialize_preview_item(level, video, segment, region, caption):
+    field_en, field_vi = _CAPTION_FIELDS[level]
+    current_caption = caption.get(field_en, '') if caption else ''
+    current_caption_vi = caption.get(field_vi, '') if caption else ''
     segment_name = segment.get('name', '')
-    object_label = region.get('label', '')
-    eligible = bool(visual_caption.strip())
+    object_label = region.get('label', '') if region else ''
+    # The name Gemini treats as ground truth: the object's own label for an
+    # object-level row, or the segment's name for a segment-level row (there's
+    # no more specific "object" than the segment itself in that case).
+    ground_truth_name = object_label if level == 'object' else segment_name
+    eligible = bool(current_caption.strip())
     return {
         'caption_id': str(caption['_id']) if caption else None,
-        'region_id': str(region['_id']),
+        'level': level,
+        'region_id': str(region['_id']) if region else None,
         'segment_id': str(segment['_id']),
         'video_id': str(video['_id']),
         'video_name': video.get('original_name', ''),
         'segment_name': segment_name,
         'object_label': object_label,
-        'current_visual_caption': visual_caption,
-        'current_visual_caption_vi': visual_caption_vi,
+        'current_visual_caption': current_caption,
+        'current_visual_caption_vi': current_caption_vi,
         'eligible': eligible,
-        'skip_reason': None if eligible else 'no_visual_caption',
-        'prompt': _build_review_prompt(object_label, segment_name, visual_caption) if eligible else None,
+        'skip_reason': None if eligible else 'no_caption',
+        'prompt': _build_review_prompt(ground_truth_name, segment_name, current_caption) if eligible else None,
     }
 
 
@@ -163,8 +184,8 @@ def batch_review_preview():
             return jsonify({'error': 'Project not found'}), 404
 
         items = [
-            _serialize_preview_item(video, segment, region, caption)
-            for video, segment, region, caption in _iter_review_candidates(
+            _serialize_preview_item(level, video, segment, region, caption)
+            for level, video, segment, region, caption in _iter_review_candidates(
                 db, project_id, video_id, subpart_id, start_idx, end_idx
             )
         ]
@@ -267,6 +288,7 @@ def _run_batch_review(app, task_id, item_ids, gemini_api_key, gemini_model):
 
                 result = {
                     'caption_id': caption_id,
+                    'level': None,
                     'region_id': None,
                     'segment_name': '',
                     'object_label': '',
@@ -275,30 +297,37 @@ def _run_batch_review(app, task_id, item_ids, gemini_api_key, gemini_model):
                     'new': None,
                     'status': 'error',
                     'error': 'Caption not found',
+                    'caption_field': 'visual_caption',
                     'applied': False,
                 }
 
                 if caption:
+                    level = 'object' if caption.get('region_id') else 'segment'
+                    field_en, field_vi = _CAPTION_FIELDS[level]
+
                     region = db.object_regions.find_one({'_id': caption.get('region_id')}) if caption.get('region_id') else None
                     segment = db.video_segments.find_one({'_id': caption.get('segment_id')}) if caption.get('segment_id') else None
                     video = db.videos.find_one({'_id': caption.get('video_id')}) if caption.get('video_id') else None
 
                     object_label = region.get('label', '') if region else ''
                     segment_name = segment.get('name', '') if segment else ''
-                    current_visual_caption = caption.get('visual_caption', '')
+                    ground_truth_name = object_label if level == 'object' else segment_name
+                    current_caption = caption.get(field_en, '')
 
                     result.update({
+                        'level': level,
                         'region_id': str(region['_id']) if region else None,
                         'segment_name': segment_name,
                         'object_label': object_label,
                         'video_name': video.get('original_name', '') if video else '',
                         'old': {
-                            'visual_caption': current_visual_caption,
-                            'visual_caption_vi': caption.get('visual_caption_vi', ''),
+                            'visual_caption': current_caption,
+                            'visual_caption_vi': caption.get(field_vi, ''),
                         },
+                        'caption_field': field_en,
                     })
 
-                    prompt = _build_review_prompt(object_label, segment_name, current_visual_caption)
+                    prompt = _build_review_prompt(ground_truth_name, segment_name, current_caption)
                     text, is_auth_error = _call_gemini_with_retry(model, prompt, caption_id)
 
                     if is_auth_error and index == 0:
@@ -462,12 +491,14 @@ def batch_review_confirm():
         if not new_visual or not new_visual_vi:
             continue
 
+        field_en = result.get('caption_field', 'visual_caption')
+        field_vi = f'{field_en}_vi'
         try:
             db.captions.update_one(
                 {'_id': ObjectId(caption_id)},
                 {'$set': {
-                    'visual_caption': new_visual,
-                    'visual_caption_vi': new_visual_vi,
+                    field_en: new_visual,
+                    field_vi: new_visual_vi,
                     'updated_at': now,
                 }}
             )

@@ -174,7 +174,8 @@ export interface Caption {
 
 export interface BatchReviewItem {
   caption_id: string | null;
-  region_id: string;
+  level: 'segment' | 'object';
+  region_id: string | null;
   segment_id: string;
   video_id: string;
   video_name: string;
@@ -200,6 +201,7 @@ export interface BatchReviewPreview {
 
 export interface BatchReviewResult {
   caption_id: string;
+  level: 'segment' | 'object' | null;
   region_id: string | null;
   segment_name: string;
   object_label: string;
