@@ -49,6 +49,10 @@ export class BatchCaptionReviewDialogComponent implements OnDestroy {
   task: BatchReviewTask | null = null;
   private pollingSub: Subscription | null = null;
 
+  // Confirm-and-apply step (results review)
+  confirmSelected = new Set<string>();
+  confirming = false;
+
   constructor(
     private dialogRef: MatDialogRef<BatchCaptionReviewDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: { projectId: string; subpartId?: string | null },
@@ -67,7 +71,9 @@ export class BatchCaptionReviewDialogComponent implements OnDestroy {
     ).subscribe({
       next: (res) => {
         this.preview = res;
-        this.selected = new Set(res.items.map(i => i.caption_id));
+        this.selected = new Set(
+          res.items.filter(i => i.eligible && i.caption_id).map(i => i.caption_id as string)
+        );
         
         // Extract unique videos
         const videoMap = new Map<string, string>();
@@ -101,14 +107,14 @@ export class BatchCaptionReviewDialogComponent implements OnDestroy {
   }
 
   selectAllVisible(): void {
-    this.filteredItems.forEach(item => {
+    this.filteredItems.filter(item => item.eligible && item.caption_id).forEach(item => {
       this.selected.add(item.caption_id);
     });
   }
 
   deselectAllVisible(): void {
-    this.filteredItems.forEach(item => {
-      this.selected.delete(item.caption_id);
+    this.filteredItems.filter(item => item.caption_id).forEach(item => {
+      this.selected.delete(item.caption_id as string);
     });
   }
 
@@ -167,15 +173,61 @@ export class BatchCaptionReviewDialogComponent implements OnDestroy {
   private pollStatus(taskId: string): void {
     this.videoService.getBatchReviewStatus(taskId).subscribe({
       next: (task) => {
+        const wasRunning = this.task?.status !== 'completed' && this.task?.status !== 'failed';
         this.task = task;
         if (task.status === 'completed' || task.status === 'failed') {
           this.pollingSub?.unsubscribe();
           this.step = 'done';
+          if (wasRunning) {
+            this.confirmSelected = new Set(
+              task.results.filter(r => r.status === 'ok' && !r.applied).map(r => r.caption_id)
+            );
+          }
         }
       },
       error: (err) => {
         this.pollingSub?.unsubscribe();
         this.snackBar.open('Lost connection to review job: ' + err.message, 'Close', { duration: 4000 });
+      }
+    });
+  }
+
+  toggleConfirmItem(captionId: string): void {
+    if (this.confirmSelected.has(captionId)) {
+      this.confirmSelected.delete(captionId);
+    } else {
+      this.confirmSelected.add(captionId);
+    }
+  }
+
+  isConfirmSelected(captionId: string): boolean {
+    return this.confirmSelected.has(captionId);
+  }
+
+  get confirmSelectedCount(): number {
+    return this.confirmSelected.size;
+  }
+
+  get pendingResultsCount(): number {
+    return this.task?.results.filter(r => r.status === 'ok' && !r.applied).length ?? 0;
+  }
+
+  confirmChanges(): void {
+    if (!this.task || this.confirmSelectedCount === 0) return;
+
+    this.confirming = true;
+    this.videoService.confirmBatchReview(this.task.task_id, Array.from(this.confirmSelected)).subscribe({
+      next: (res) => {
+        this.confirming = false;
+        this.snackBar.open(`Applied ${res.applied} caption(s)`, 'Close', { duration: 3000 });
+        this.videoService.getBatchReviewStatus(this.task!.task_id).subscribe(task => {
+          this.task = task;
+          this.confirmSelected.clear();
+        });
+      },
+      error: (err) => {
+        this.confirming = false;
+        this.snackBar.open('Failed to apply changes: ' + err.message, 'Close', { duration: 4000 });
       }
     });
   }

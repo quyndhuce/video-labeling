@@ -267,6 +267,13 @@ export class VideoService {
     return this.http.get<BatchReviewTask>(`${this.ANNOTATIONS_API}/batch-review/status/${taskId}`);
   }
 
+  confirmBatchReview(taskId: string, captionIds: string[]): Observable<{ applied: number; skipped: number }> {
+    return this.http.post<{ applied: number; skipped: number }>(`${this.ANNOTATIONS_API}/batch-review/confirm`, {
+      task_id: taskId,
+      caption_ids: captionIds,
+    });
+  }
+
   // ---- DAM Auto-Caption (Video: 8 frames) ----
   generateCaption(frames: string[], maskImage: string, captionType: 'visual' | 'contextual'): Observable<{ caption: string; caption_type: string }> {
     return this.dam.generateCaption(frames, maskImage, captionType);

@@ -173,7 +173,7 @@ export interface Caption {
 }
 
 export interface BatchReviewItem {
-  caption_id: string;
+  caption_id: string | null;
   region_id: string;
   segment_id: string;
   video_id: string;
@@ -182,7 +182,9 @@ export interface BatchReviewItem {
   object_label: string;
   current_visual_caption: string;
   current_visual_caption_vi: string;
-  prompt: string;
+  eligible: boolean;
+  skip_reason: string | null;
+  prompt: string | null;
 }
 
 export interface BatchReviewPreview {
@@ -191,6 +193,7 @@ export interface BatchReviewPreview {
   video_id: string | null;
   subpart_id?: string | null;
   total_items: number;
+  eligible_items: number;
   total_videos?: number;
   items: BatchReviewItem[];
 }
@@ -205,6 +208,7 @@ export interface BatchReviewResult {
   new: { visual_caption: string; visual_caption_vi: string } | null;
   status: 'ok' | 'error';
   error: string | null;
+  applied: boolean;
 }
 
 export interface BatchReviewTask {

@@ -60,16 +60,20 @@ def _extract_json_from_text(text):
 
 
 def _build_review_prompt(object_label, segment_name, current_visual_caption):
-    return f"""Object name (ground truth): {object_label}
+    return f"""Object name (ground truth, may be a proper name): {object_label}
 Segment name (context): {segment_name}
 Original caption (may misidentify the object): {current_visual_caption}
 
 Task:
-1. Rewrite the caption so it correctly refers to the object as "{object_label}" wherever the
-   original wrongly called it something else, preserving all other correctly-described visual
-   details (colors, position, materials, actions, etc.). Keep it a natural, fluent English
-   caption of similar length.
-2. Translate your corrected caption into fluent Vietnamese with proper diacritics.
+1. Identify what general type of object "{object_label}" is (e.g. "Hang Dau Tower" -> "tower",
+   "Ben Thanh Market" -> "market", "gate" -> "gate"). Rewrite the caption so it correctly refers
+   to the object using that general type (e.g. "this tower", "the market") wherever the original
+   wrongly called it something else. Do NOT insert the proper name itself into the caption —
+   only the generic type. Preserve all other correctly-described visual details (colors,
+   position, materials, actions, etc.). Keep it a natural, fluent English caption of similar
+   length.
+2. Translate your corrected caption into fluent Vietnamese with proper diacritics, using the
+   generic type there too (e.g. "tòa tháp này", "ngôi chợ này") — not the proper name.
 
 Return ONLY valid JSON:
 {{"visual_caption": "...", "visual_caption_vi": "..."}}
@@ -77,9 +81,10 @@ Return ONLY valid JSON:
 
 
 def _iter_review_candidates(db, project_id, video_id=None, subpart_id=None, video_start=None, video_end=None):
-    """Yield (video, segment, region, caption) for every object-level caption
-    that matches the query. Filters by subpart_id and video range (video_start/video_end, 1-based index)
-    if specified."""
+    """Yield (video, segment, region, caption) for every object region that
+    matches the query, whether or not it has a caption yet. `caption` is None
+    when no caption doc exists for the region. Filters by subpart_id and video
+    range (video_start/video_end, 1-based index) if specified."""
     query = {'project_id': ObjectId(project_id)}
     if video_id:
         query['_id'] = ObjectId(video_id)
@@ -107,17 +112,17 @@ def _iter_review_candidates(db, project_id, video_id=None, subpart_id=None, vide
             regions = list(db.object_regions.find({'segment_id': segment['_id']}))
             for region in regions:
                 caption = db.captions.find_one({'region_id': region['_id']})
-                if not caption or not (caption.get('visual_caption') or '').strip():
-                    continue
                 yield video, segment, region, caption
 
 
 def _serialize_preview_item(video, segment, region, caption):
-    visual_caption = caption.get('visual_caption', '')
+    visual_caption = caption.get('visual_caption', '') if caption else ''
+    visual_caption_vi = caption.get('visual_caption_vi', '') if caption else ''
     segment_name = segment.get('name', '')
     object_label = region.get('label', '')
+    eligible = bool(visual_caption.strip())
     return {
-        'caption_id': str(caption['_id']),
+        'caption_id': str(caption['_id']) if caption else None,
         'region_id': str(region['_id']),
         'segment_id': str(segment['_id']),
         'video_id': str(video['_id']),
@@ -125,8 +130,10 @@ def _serialize_preview_item(video, segment, region, caption):
         'segment_name': segment_name,
         'object_label': object_label,
         'current_visual_caption': visual_caption,
-        'current_visual_caption_vi': caption.get('visual_caption_vi', ''),
-        'prompt': _build_review_prompt(object_label, segment_name, visual_caption),
+        'current_visual_caption_vi': visual_caption_vi,
+        'eligible': eligible,
+        'skip_reason': None if eligible else 'no_visual_caption',
+        'prompt': _build_review_prompt(object_label, segment_name, visual_caption) if eligible else None,
     }
 
 
@@ -176,6 +183,7 @@ def batch_review_preview():
             'video_id': video_id,
             'subpart_id': subpart_id,
             'total_items': len(items),
+            'eligible_items': sum(1 for i in items if i['eligible']),
             'total_videos': total_videos,
             'items': items,
         }), 200
@@ -267,6 +275,7 @@ def _run_batch_review(app, task_id, item_ids, gemini_api_key, gemini_model):
                     'new': None,
                     'status': 'error',
                     'error': 'Caption not found',
+                    'applied': False,
                 }
 
                 if caption:
@@ -312,18 +321,9 @@ def _run_batch_review(app, task_id, item_ids, gemini_api_key, gemini_model):
                         new_visual_vi = ((parsed or {}).get('visual_caption_vi') or '').strip()
 
                         if new_visual and new_visual_vi:
-                            # Intentionally does not call _reset_video_approval_if_needed
-                            # (annotations.py:53-65) — bulk auto-fixes behave like the existing
-                            # skip_approval_reset convention used by tools/caption_combiner, so a
-                            # batch run doesn't flip already-approved videos back to review.
-                            db.captions.update_one(
-                                {'_id': caption['_id']},
-                                {'$set': {
-                                    'visual_caption': new_visual,
-                                    'visual_caption_vi': new_visual_vi,
-                                    'updated_at': datetime.now(timezone.utc),
-                                }}
-                            )
+                            # Gemini's fix is only *proposed* here — nothing is written to
+                            # db.captions until the reviewer confirms it via
+                            # /batch-review/confirm (batch_review_confirm below).
                             result['status'] = 'ok'
                             result['error'] = None
                             result['new'] = {'visual_caption': new_visual, 'visual_caption_vi': new_visual_vi}
@@ -421,3 +421,70 @@ def batch_review_status(task_id):
     if not task:
         return jsonify({'error': 'Task not found'}), 404
     return jsonify(_serialize_task(task)), 200
+
+
+@batch_review_bp.route('/batch-review/confirm', methods=['POST'])
+@token_required
+def batch_review_confirm():
+    """Write reviewer-approved Gemini proposals to db.captions.
+
+    Only proposals already sitting in the task's `results` list (status 'ok',
+    not yet applied) are written; anything else in `caption_ids` is ignored.
+    """
+    data = request.get_json() or {}
+    task_id = data.get('task_id')
+    caption_ids = data.get('caption_ids') or []
+
+    if not task_id:
+        return jsonify({'error': 'task_id is required'}), 400
+    if not caption_ids:
+        return jsonify({'error': 'caption_ids must be a non-empty list'}), 400
+
+    db = current_app.db
+    task = db.caption_review_tasks.find_one({'_id': task_id})
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    if task.get('status') not in ('completed', 'failed'):
+        return jsonify({'error': 'Task is still running'}), 409
+
+    results_by_id = {r['caption_id']: r for r in task.get('results', [])}
+    requested = set(caption_ids)
+
+    applied_ids = []
+    now = datetime.now(timezone.utc)
+    for caption_id in caption_ids:
+        result = results_by_id.get(caption_id)
+        if not result or result.get('status') != 'ok' or result.get('applied'):
+            continue
+        new_vals = result.get('new') or {}
+        new_visual = (new_vals.get('visual_caption') or '').strip()
+        new_visual_vi = (new_vals.get('visual_caption_vi') or '').strip()
+        if not new_visual or not new_visual_vi:
+            continue
+
+        try:
+            db.captions.update_one(
+                {'_id': ObjectId(caption_id)},
+                {'$set': {
+                    'visual_caption': new_visual,
+                    'visual_caption_vi': new_visual_vi,
+                    'updated_at': now,
+                }}
+            )
+        except Exception:
+            continue
+        # Intentionally does not call _reset_video_approval_if_needed
+        # (annotations.py:53-65) — bulk auto-fixes behave like the existing
+        # skip_approval_reset convention used by tools/caption_combiner, so a
+        # batch run doesn't flip already-approved videos back to review.
+        applied_ids.append(caption_id)
+
+    if applied_ids:
+        db.caption_review_tasks.update_one(
+            {'_id': task_id},
+            {'$set': {'results.$[elem].applied': True, 'updated_at': now}},
+            array_filters=[{'elem.caption_id': {'$in': applied_ids}}]
+        )
+
+    skipped = len(requested) - len(applied_ids)
+    return jsonify({'applied': len(applied_ids), 'skipped': skipped}), 200

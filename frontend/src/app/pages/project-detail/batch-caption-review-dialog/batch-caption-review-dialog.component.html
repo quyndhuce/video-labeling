@@ -37,7 +37,7 @@
   <ng-container *ngIf="step === 'preview' && preview">
     <div class="preview-header">
       <span>
-        {{ preview.total_items }} object caption(s) found
+        {{ preview.total_items }} segment object(s) found &mdash; {{ preview.eligible_items }} have a caption to review
         <ng-container *ngIf="totalVideos">&mdash; across {{ uniqueVideos.length }} video(s) (Range: {{ videoStart || 1 }} to {{ videoEnd || totalVideos }} of {{ totalVideos }})</ng-container>
         &mdash; {{ selectedCount }} selected
       </span>
@@ -76,13 +76,16 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let item of filteredItems">
-          <td><mat-checkbox [checked]="isSelected(item.caption_id)" (change)="toggleItem(item.caption_id)"></mat-checkbox></td>
+        <tr *ngFor="let item of filteredItems" [class.ineligible-row]="!item.eligible">
+          <td>
+            <mat-checkbox *ngIf="item.eligible" [checked]="isSelected(item.caption_id!)" (change)="toggleItem(item.caption_id!)"></mat-checkbox>
+            <span *ngIf="!item.eligible" class="no-caption-badge" matTooltip="No visual caption yet — nothing for Gemini to review">n/a</span>
+          </td>
           <td>{{ item.video_name }}</td>
           <td>{{ item.segment_name }}</td>
           <td>{{ item.object_label }}</td>
-          <td>{{ item.current_visual_caption }}</td>
-          <td>{{ item.current_visual_caption_vi }}</td>
+          <td>{{ item.current_visual_caption || '(no caption yet)' }}</td>
+          <td>{{ item.current_visual_caption_vi || '(no caption yet)' }}</td>
         </tr>
       </tbody>
     </table>
@@ -109,11 +112,16 @@
   <ng-container *ngIf="step === 'running' || step === 'done'">
     <p *ngIf="task">{{ task.processed }} / {{ task.total }} processed &mdash; {{ task.succeeded }} succeeded, {{ task.failed }} failed</p>
     <mat-progress-bar *ngIf="step === 'running'" mode="determinate" [value]="task && task.total ? (task.processed / task.total * 100) : 0"></mat-progress-bar>
-    <p *ngIf="task?.status === 'failed'" class="error-banner">{{ task?.error }}</p>
+    <p *ngIf="task?.status === 'failed' && task?.error" class="error-banner">{{ task?.error }}</p>
+
+    <p *ngIf="step === 'done' && task && task.succeeded > 0" class="confirm-hint">
+      Review the proposed changes below and choose which ones to apply. Nothing is written to the actual captions until you confirm.
+    </p>
 
     <table *ngIf="task && task.results.length" class="results-table">
       <thead>
         <tr>
+          <th *ngIf="step === 'done'"></th>
           <th>Segment</th>
           <th>Object</th>
           <th>Old caption (EN)</th>
@@ -123,6 +131,11 @@
       </thead>
       <tbody>
         <tr *ngFor="let r of task!.results" [class.error-row]="r.status === 'error'">
+          <td *ngIf="step === 'done'">
+            <mat-checkbox *ngIf="r.status === 'ok' && !r.applied"
+              [checked]="isConfirmSelected(r.caption_id)" (change)="toggleConfirmItem(r.caption_id)"></mat-checkbox>
+            <span *ngIf="r.applied" class="applied-badge">Applied ✓</span>
+          </td>
           <td>{{ r.segment_name }}</td>
           <td>{{ r.object_label }}</td>
           <td>{{ r.old.visual_caption }}</td>
@@ -131,6 +144,13 @@
         </tr>
       </tbody>
     </table>
+
+    <div class="confirm-row" *ngIf="step === 'done' && pendingResultsCount > 0">
+      <span>{{ confirmSelectedCount }} of {{ pendingResultsCount }} pending change(s) selected</span>
+      <button mat-raised-button color="primary" (click)="confirmChanges()" [disabled]="confirming || confirmSelectedCount === 0">
+        {{ confirming ? 'Applying...' : 'Confirm & Apply Selected' }}
+      </button>
+    </div>
   </ng-container>
 </mat-dialog-content>
 

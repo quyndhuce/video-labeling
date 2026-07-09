@@ -8,13 +8,15 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+  color: #cbd5e1;
 }
 
 .raw-json {
-  background: #1e1e1e;
-  color: #d4d4d4;
+  background: #11151d;
+  color: #cbd5e1;
   padding: 12px;
   border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
   max-height: 400px;
   overflow: auto;
   font-size: 12px;
@@ -23,14 +25,33 @@
 .preview-table {
   width: 100%;
   border-collapse: collapse;
+  color: #cbd5e1;
 
   th, td {
     text-align: left;
     padding: 6px 8px;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 13px;
     vertical-align: top;
   }
+
+  th {
+    color: #94a3b8;
+    font-weight: 600;
+  }
+}
+
+.ineligible-row {
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.no-caption-badge {
+  font-size: 11px;
+  color: #64748b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 1px 6px;
 }
 
 .approve-row {
@@ -44,23 +65,50 @@
 .results-table {
   width: 100%;
   border-collapse: collapse;
+  color: #cbd5e1;
 
   th, td {
     text-align: left;
     padding: 6px 8px;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 13px;
     vertical-align: top;
+  }
+
+  th {
+    color: #94a3b8;
+    font-weight: 600;
   }
 }
 
 .error-row {
-  background: #fdecea;
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .error-banner {
-  color: #c62828;
+  color: #f87171;
   font-weight: 500;
+}
+
+.confirm-hint {
+  color: #94a3b8;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.applied-badge {
+  font-size: 11px;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.confirm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  gap: 16px;
+  color: #cbd5e1;
 }
 
 .filter-row {
@@ -69,7 +117,8 @@
   align-items: center;
   margin-bottom: 16px;
   gap: 16px;
-  background: #f9f9f9;
+  background: #1a1f2e;
+  border: 1px solid rgba(255, 255, 255, 0.06);
   padding: 10px 16px;
   border-radius: 4px;
 }
@@ -90,8 +139,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #e3f2fd;
-  color: #0d47a1;
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
   padding: 8px 16px;
   border-radius: 4px;
   margin-bottom: 20px;
@@ -106,19 +155,20 @@
 .range-setup {
   margin-bottom: 24px;
   padding: 16px;
-  border: 1px dashed #ccc;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
   border-radius: 6px;
-  background: #fafafa;
+  background: #1a1f2e;
   h3 {
     margin: 0 0 8px 0;
     font-size: 15px;
     font-weight: 500;
+    color: #f1f5f9;
   }
 }
 
 .setup-subtext {
   font-size: 13px;
-  color: #666;
+  color: #94a3b8;
   margin: 0 0 16px 0;
 }
 

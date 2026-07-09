@@ -1,7 +1,19 @@
 # Gemini Batch Caption Review Design
 
 Date: 2026-07-08
-Status: Draft — awaiting user review
+Status: Implemented, revised 2026-07-09 (see Revisions below)
+
+## Revisions (2026-07-09)
+
+Post-ship feedback led to three changes to what's documented below:
+
+1. **Full coverage, not just non-empty captions.** The preview now yields every object region in scope, whether or not it has a caption yet. Items with no existing `visual_caption` are still non-selectable/non-eligible for the Gemini run (unchanged goal — nothing to "fix" if there's nothing there), but they now show up in the table (grayed out, "no caption yet") instead of being silently absent, so a reviewer scanning one video can see every segment and every object in it. `_serialize_preview_item` adds `eligible`/`skip_reason`; the preview response adds `eligible_items`.
+2. **Approve-before-write.** The "Per-item manual accept/reject after Gemini responds — out of scope" line below is superseded. `_run_batch_review` now only *proposes* changes (`results[].new`, `applied: false`); nothing is written to `db.captions` until a new `POST /api/annotations/batch-review/confirm` call (`{task_id, caption_ids}`) applies the selected proposals and flips their `applied` flag. The frontend results table gets a checkbox per successful row (checked by default) and a "Confirm & Apply Selected" button.
+3. **Dialog theming.** The dialog's SCSS hardcoded light-mode colors that clashed with the app's dark theme; restyled to reuse the app's existing dark palette (`#1a1f2e` panels, `rgba(255,255,255,0.06)` borders, `#cbd5e1`/`#94a3b8` text, etc.).
+
+## Revisions (2026-07-10)
+
+4. **Generic type, not proper name, in the caption text.** `_build_review_prompt` previously told Gemini to insert `object_label` verbatim into the caption (e.g. "Hang Dau Tower is..."). Object labels are often proper names, but visual captions should describe what's visually apparent, not name-drop it. The prompt now asks Gemini to first infer the object's general type from its label (e.g. "Hang Dau Tower" -> "tower") and use that generic term in both the English and Vietnamese caption (e.g. "this tower...", "tòa tháp này..."), never the proper name itself. See the updated prompt template below.
 
 ## Goal
 
@@ -122,16 +134,20 @@ No Gemini SDK import, no API key parameter — this endpoint cannot make an exte
 ### Prompt template (`_build_review_prompt`)
 
 ```
-Object name (ground truth): {object_label}
+Object name (ground truth, may be a proper name): {object_label}
 Segment name (context): {segment_name}
 Original caption (may misidentify the object): {current_visual_caption}
 
 Task:
-1. Rewrite the caption so it correctly refers to the object as "{object_label}" wherever the
-   original wrongly called it something else, preserving all other correctly-described visual
-   details (colors, position, materials, actions, etc.). Keep it a natural, fluent English
-   caption of similar length.
-2. Translate your corrected caption into fluent Vietnamese with proper diacritics.
+1. Identify what general type of object "{object_label}" is (e.g. "Hang Dau Tower" -> "tower",
+   "Ben Thanh Market" -> "market", "gate" -> "gate"). Rewrite the caption so it correctly refers
+   to the object using that general type (e.g. "this tower", "the market") wherever the original
+   wrongly called it something else. Do NOT insert the proper name itself into the caption —
+   only the generic type. Preserve all other correctly-described visual details (colors,
+   position, materials, actions, etc.). Keep it a natural, fluent English caption of similar
+   length.
+2. Translate your corrected caption into fluent Vietnamese with proper diacritics, using the
+   generic type there too (e.g. "tòa tháp này", "ngôi chợ này") — not the proper name.
 
 Return ONLY valid JSON:
 {"visual_caption": "...", "visual_caption_vi": "..."}
