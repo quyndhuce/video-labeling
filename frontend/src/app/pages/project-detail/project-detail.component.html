@@ -28,6 +28,9 @@
       <button mat-icon-button matTooltip="Chỉ tải metadata.json (kb_id + start/end_time + caption, KHÔNG kèm video)" (click)="exportSegmentedKbMetadataOnly()" *ngIf="project" [disabled]="isExporting">
         <mat-icon>{{ isExporting ? 'hourglass_empty' : 'data_object' }}</mat-icon>
       </button>
+      <button mat-icon-button matTooltip="Batch Review Visual Captions (Gemini)" (click)="openBatchCaptionReview()" *ngIf="project">
+        <mat-icon>auto_fix_high</mat-icon>
+      </button>
     </div>
   </div>
   <div class="nav-right">

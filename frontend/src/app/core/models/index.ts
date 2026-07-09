@@ -172,6 +172,52 @@ export interface Caption {
   updated_at?: string;
 }
 
+export interface BatchReviewItem {
+  caption_id: string;
+  region_id: string;
+  segment_id: string;
+  video_id: string;
+  video_name: string;
+  segment_name: string;
+  object_label: string;
+  current_visual_caption: string;
+  current_visual_caption_vi: string;
+  prompt: string;
+}
+
+export interface BatchReviewPreview {
+  generated_at: string;
+  project_id: string;
+  video_id: string | null;
+  total_items: number;
+  items: BatchReviewItem[];
+}
+
+export interface BatchReviewResult {
+  caption_id: string;
+  region_id: string | null;
+  segment_name: string;
+  object_label: string;
+  video_name: string;
+  old: { visual_caption: string; visual_caption_vi: string };
+  new: { visual_caption: string; visual_caption_vi: string } | null;
+  status: 'ok' | 'error';
+  error: string | null;
+}
+
+export interface BatchReviewTask {
+  task_id: string;
+  project_id: string;
+  video_id: string | null;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  total: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  error: string | null;
+  results: BatchReviewResult[];
+}
+
 export interface SegmentationResponse {
   segmented_mask: string;
   confidence: number;

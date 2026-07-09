@@ -23,6 +23,7 @@ import { ProjectService } from '../../core/services/project.service';
 import { VideoService } from '../../core/services/video.service';
 import { ImageService } from '../../core/services/image.service';
 import { SettingsDialogComponent } from '../settings-dialog/settings-dialog.component';
+import { BatchCaptionReviewDialogComponent } from './batch-caption-review-dialog/batch-caption-review-dialog.component';
 import { Project, SubPart, VideoItem, ImageItem, User, Tag } from '../../core/models';
 import { generateThumbnail } from '../../core/utils/video-thumbnail';
 
@@ -837,6 +838,15 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
     this.showTagManager = true;
     this.newTagName = '';
     this.editingTagId = '';
+  }
+
+  openBatchCaptionReview(): void {
+    if (!this.project) return;
+    this.dialog.open(BatchCaptionReviewDialogComponent, {
+      width: '900px',
+      maxWidth: '95vw',
+      data: { projectId: this.project.id }
+    });
   }
 
   createTag(): void {

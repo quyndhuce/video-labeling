@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { VideoItem, VideoSegment, ObjectRegion, SegmentationResponse, Caption, Category, DurationStats } from '../models';
+import { VideoItem, VideoSegment, ObjectRegion, SegmentationResponse, Caption, Category, DurationStats, BatchReviewPreview, BatchReviewTask } from '../models';
 import { DamService } from './dam.service';
 
 @Injectable({ providedIn: 'root' })
@@ -229,6 +229,33 @@ export class VideoService {
     const url = `${this.ANNOTATIONS_API}/export/project/${projectId}/segmented-kb/metadata`
       + (subpartId ? `?subpart_id=${subpartId}` : '');
     return this.http.get<any>(url);
+  }
+
+  // ---- Gemini Batch Caption Review ----
+  getBatchReviewPreview(projectId: string, videoId?: string): Observable<BatchReviewPreview> {
+    const url = `${this.ANNOTATIONS_API}/batch-review/preview?project_id=${projectId}`
+      + (videoId ? `&video_id=${videoId}` : '');
+    return this.http.get<BatchReviewPreview>(url);
+  }
+
+  startBatchReview(
+    projectId: string,
+    videoId: string | null,
+    itemIds: string[],
+    apiKey: string,
+    model?: string
+  ): Observable<{ task_id: string }> {
+    return this.http.post<{ task_id: string }>(`${this.ANNOTATIONS_API}/batch-review/apply`, {
+      project_id: projectId,
+      video_id: videoId,
+      item_ids: itemIds,
+      gemini_api_key: apiKey,
+      gemini_model: model,
+    });
+  }
+
+  getBatchReviewStatus(taskId: string): Observable<BatchReviewTask> {
+    return this.http.get<BatchReviewTask>(`${this.ANNOTATIONS_API}/batch-review/status/${taskId}`);
   }
 
   // ---- DAM Auto-Caption (Video: 8 frames) ----

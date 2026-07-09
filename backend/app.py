@@ -64,6 +64,7 @@ def create_app():
     from routes.videos import videos_bp
     from routes.segments import segments_bp
     from routes.annotations import annotations_bp
+    from routes.batch_review import batch_review_bp
     from routes.tags import tags_bp
     from routes.settings import settings_bp
     from routes.categories import categories_bp
@@ -76,6 +77,7 @@ def create_app():
     app.register_blueprint(videos_bp, url_prefix='/api/videos')
     app.register_blueprint(segments_bp, url_prefix='/api/segments')
     app.register_blueprint(annotations_bp, url_prefix='/api/annotations')
+    app.register_blueprint(batch_review_bp, url_prefix='/api/annotations')
     app.register_blueprint(tags_bp, url_prefix='/api/tags')
     app.register_blueprint(settings_bp, url_prefix='/api/settings')
     app.register_blueprint(categories_bp, url_prefix='/api/categories')
@@ -97,6 +99,7 @@ def create_app():
     app.db.video_segments.create_index('video_id')
     app.db.object_regions.create_index('segment_id')
     app.db.captions.create_index('segment_id')
+    app.db.caption_review_tasks.create_index('project_id')
     app.db.tags.create_index([('project_id', 1), ('name', 1)], unique=True)
     # Image indexes
     app.db.images.create_index('project_id')

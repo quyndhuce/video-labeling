@@ -1,0 +1,114 @@
+<h2 mat-dialog-title>Batch Review Visual Captions (Gemini)</h2>
+
+<mat-dialog-content class="batch-review-content">
+  <ng-container *ngIf="step === 'setup'">
+    <p>
+      Scans every object-level caption in this project and lets Gemini correct captions that
+      misidentify the labeled object, using the object's name and segment name as ground truth,
+      then translates the fix to Vietnamese. Nothing is sent to Gemini until you review the
+      preview below and approve it.
+    </p>
+    <button mat-raised-button color="primary" (click)="generatePreview()" [disabled]="loadingPreview">
+      {{ loadingPreview ? 'Generating preview...' : 'Generate Preview' }}
+    </button>
+  </ng-container>
+
+  <ng-container *ngIf="step === 'preview' && preview">
+    <div class="preview-header">
+      <span>{{ preview.total_items }} object caption(s) found &mdash; {{ selectedCount }} selected</span>
+      <button mat-button (click)="showRawJson = !showRawJson">
+        {{ showRawJson ? 'Hide raw JSON' : 'View raw JSON' }}
+      </button>
+    </div>
+
+    <pre *ngIf="showRawJson" class="raw-json">{{ previewJson }}</pre>
+
+    <div class="filter-row" *ngIf="!showRawJson">
+      <mat-form-field appearance="outline" class="video-filter-field">
+        <mat-label>Filter by Video</mat-label>
+        <mat-select [(ngModel)]="selectedVideoId" (selectionChange)="onVideoFilterChange()">
+          <mat-option value="all">All Videos</mat-option>
+          <mat-option *ngFor="let video of uniqueVideos" [value]="video.id">
+            {{ video.name }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+      <div class="filter-actions">
+        <button mat-button (click)="selectAllVisible()">Select All Visible</button>
+        <button mat-button (click)="deselectAllVisible()">Deselect All Visible</button>
+      </div>
+    </div>
+
+    <table *ngIf="!showRawJson" class="preview-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Video</th>
+          <th>Segment</th>
+          <th>Object</th>
+          <th>Current caption (EN)</th>
+          <th>Current caption (VI)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of filteredItems">
+          <td><mat-checkbox [checked]="isSelected(item.caption_id)" (change)="toggleItem(item.caption_id)"></mat-checkbox></td>
+          <td>{{ item.video_name }}</td>
+          <td>{{ item.segment_name }}</td>
+          <td>{{ item.object_label }}</td>
+          <td>{{ item.current_visual_caption }}</td>
+          <td>{{ item.current_visual_caption_vi }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="approve-row">
+      <mat-form-field appearance="outline">
+        <mat-label>Gemini API key</mat-label>
+        <input matInput type="password" [(ngModel)]="apiKey" autocomplete="off">
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Model</mat-label>
+        <mat-select [(ngModel)]="model">
+          <mat-option value="gemini-2.5-flash">gemini-2.5-flash</mat-option>
+          <mat-option value="gemini-2.5-pro">gemini-2.5-pro</mat-option>
+          <mat-option value="gemini-2.0-flash">gemini-2.0-flash</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <button mat-raised-button color="primary" (click)="startReview()" [disabled]="starting || selectedCount === 0 || !apiKey.trim()">
+        {{ starting ? 'Starting...' : 'Approve & Run' }}
+      </button>
+    </div>
+  </ng-container>
+
+  <ng-container *ngIf="step === 'running' || step === 'done'">
+    <p *ngIf="task">{{ task.processed }} / {{ task.total }} processed &mdash; {{ task.succeeded }} succeeded, {{ task.failed }} failed</p>
+    <mat-progress-bar *ngIf="step === 'running'" mode="determinate" [value]="task && task.total ? (task.processed / task.total * 100) : 0"></mat-progress-bar>
+    <p *ngIf="task?.status === 'failed'" class="error-banner">{{ task?.error }}</p>
+
+    <table *ngIf="task && task.results.length" class="results-table">
+      <thead>
+        <tr>
+          <th>Segment</th>
+          <th>Object</th>
+          <th>Old caption (EN)</th>
+          <th>New caption (EN)</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let r of task!.results" [class.error-row]="r.status === 'error'">
+          <td>{{ r.segment_name }}</td>
+          <td>{{ r.object_label }}</td>
+          <td>{{ r.old.visual_caption }}</td>
+          <td>{{ r.new?.visual_caption || '—' }}</td>
+          <td>{{ r.status === 'ok' ? '✓' : r.error }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </ng-container>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="close()">Close</button>
+</mat-dialog-actions>
