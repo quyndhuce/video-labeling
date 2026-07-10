@@ -843,7 +843,7 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
   openBatchCaptionReview(): void {
     if (!this.project) return;
     this.dialog.open(BatchCaptionReviewDialogComponent, {
-      width: '900px',
+      width: '1400px',
       maxWidth: '95vw',
       data: {
         projectId: this.project.id,

@@ -66,13 +66,21 @@ Original caption (may misidentify the object): {current_visual_caption}
 
 Task:
 1. Identify what general type of object "{object_label}" is (e.g. "Hang Dau Tower" -> "tower",
-   "Ben Thanh Market" -> "market", "gate" -> "gate"). Rewrite the caption so it correctly refers
-   to the object using that general type (e.g. "this tower", "the market") wherever the original
-   wrongly called it something else. Do NOT insert the proper name itself into the caption —
-   only the generic type. Preserve all other correctly-described visual details (colors,
-   position, materials, actions, etc.). Keep it a natural, fluent English caption of similar
-   length.
-2. Translate your corrected caption into fluent Vietnamese with proper diacritics, using the
+   "Ben Thanh Market" -> "market", "Van Mieu gate" -> "gate"). Rewrite the
+   caption so it correctly refers to the object using that general type (e.g. "this tower",
+   "the market") wherever the original wrongly called it something else. Do NOT insert the
+   proper name itself into the caption — only the generic type. Preserve all other
+   correctly-described visual details (colors, position, materials, actions, etc.).
+2. If the caption misattributes the object's cultural/national origin (e.g. calls a Vietnamese
+   temple "Chinese"), correct it to Vietnamese. Only change this if the caption states or
+   implies the wrong origin — don't insert a nationality that wasn't mentioned at all.
+3. Make the rewritten caption a bit longer and more descriptive than the original — add
+   natural, human-sounding detail, but restrict any added detail to observable visual
+   attributes only (shape, material, color, arrangement, texture, light). Do not add
+   interpretive, promotional, or intent-based claims (e.g. "inspired by," "evokes," "blends
+   with the surrounding landscape," "showcasing the beauty of..."). Don't pad with filler or
+   repeat the same idea.
+4. Translate your corrected caption into fluent Vietnamese with proper diacritics, using the
    generic type there too (e.g. "tòa tháp này", "ngôi chợ này") — not the proper name.
 
 Return ONLY valid JSON:
