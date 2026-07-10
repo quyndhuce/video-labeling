@@ -274,6 +274,18 @@ export class VideoService {
     });
   }
 
+  getActiveBatchReview(projectId: string): Observable<{ task: BatchReviewTask | null }> {
+    return this.http.get<{ task: BatchReviewTask | null }>(
+      `${this.ANNOTATIONS_API}/batch-review/active?project_id=${projectId}`
+    );
+  }
+
+  cancelBatchReview(taskId: string): Observable<BatchReviewTask> {
+    return this.http.post<BatchReviewTask>(`${this.ANNOTATIONS_API}/batch-review/cancel`, {
+      task_id: taskId,
+    });
+  }
+
   // ---- DAM Auto-Caption (Video: 8 frames) ----
   generateCaption(frames: string[], maskImage: string, captionType: 'visual' | 'contextual'): Observable<{ caption: string; caption_type: string }> {
     return this.dam.generateCaption(frames, maskImage, captionType);

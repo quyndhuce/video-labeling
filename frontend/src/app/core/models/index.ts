@@ -217,7 +217,7 @@ export interface BatchReviewTask {
   task_id: string;
   project_id: string;
   video_id: string | null;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
   total: number;
   processed: number;
   succeeded: number;

@@ -283,15 +283,18 @@ async def lifespan(app: FastAPI):
         print("[DAM] --model-path not provided, skipping DAM model load.")
 
     # Load DINOv2 model
-    try:
-        dinov2_model_name = getattr(app.args, 'dinov2_model', DINOV2_MODEL)
-        dinov2_model, dinov2_transform = load_dinov2_model(dinov2_model_name)
-        if do_compile:
-            # DINOv2 is a clean forward pass with fixed 518x518 input — safest target
-            dinov2_model = _try_compile(dinov2_model, label="DINOv2", mode=compile_mode, fullgraph=False)
-    except Exception as e:
-        print(f"[DINOv2] Failed to load model: {e}")
-        traceback.print_exc()
+    if getattr(app.args, 'skip_dinov2', False):
+        print("[DINOv2] --skip-dinov2 set, skipping model load. /embed and visual-similarity search will be unavailable.")
+    else:
+        try:
+            dinov2_model_name = getattr(app.args, 'dinov2_model', DINOV2_MODEL)
+            dinov2_model, dinov2_transform = load_dinov2_model(dinov2_model_name)
+            if do_compile:
+                # DINOv2 is a clean forward pass with fixed 518x518 input — safest target
+                dinov2_model = _try_compile(dinov2_model, label="DINOv2", mode=compile_mode, fullgraph=False)
+        except Exception as e:
+            print(f"[DINOv2] Failed to load model: {e}")
+            traceback.print_exc()
 
     # Load SAM2 model for segmentation (same approach as demo_video.py)
     sam2_predictor = None
@@ -988,6 +991,7 @@ if __name__ == "__main__":
     model_path = os.getenv("DAM_MODEL_PATH", "")
     conv_mode = os.getenv("DAM_CONV_MODE", "v1")
     workers = int(os.getenv("DAM_WORKERS", "1"))
+    skip_dinov2 = os.getenv("DAM_SKIP_DINOV2", "").strip().lower() in ("1", "true", "yes")
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default=host)
@@ -1010,6 +1014,10 @@ if __name__ == "__main__":
                         help="Path to SAM2 config YAML (e.g., configs/sam2.1/sam2.1_hiera_l.yaml). Auto-detected if empty.")
     parser.add_argument("--dinov2-model", type=str, default=DINOV2_MODEL,
                         help="DINOv2 model name (dinov2_vits14, dinov2_vitb14, dinov2_vitl14, dinov2_vitg14)")
+    parser.add_argument("--skip-dinov2", action="store_true", default=skip_dinov2,
+                        help="Skip loading the DINOv2 embedding model. Disables /embed and visual-similarity "
+                             "search (KB matching, image search); DAM captioning and SAM2 segmentation are unaffected. "
+                             "Can also be set via DAM_SKIP_DINOV2=1.")
     parser.add_argument("--compile", action="store_true",
                         help="Enable torch.compile (Triton/Inductor) on DAM LLM, DINOv2, and SAM2 image encoder. "
                              "First inference takes 30-120s for kernel warmup; subsequent calls are faster.")

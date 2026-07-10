@@ -1,4 +1,4 @@
-import { Component, Inject, OnDestroy } from '@angular/core';
+import { Component, Inject, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
@@ -26,7 +26,7 @@ type DialogStep = 'setup' | 'preview' | 'running' | 'done';
   templateUrl: './batch-caption-review-dialog.component.html',
   styleUrls: ['./batch-caption-review-dialog.component.scss']
 })
-export class BatchCaptionReviewDialogComponent implements OnDestroy {
+export class BatchCaptionReviewDialogComponent implements OnInit, OnDestroy {
   step: DialogStep = 'setup';
   loadingPreview = false;
   preview: BatchReviewPreview | null = null;
@@ -52,6 +52,7 @@ export class BatchCaptionReviewDialogComponent implements OnDestroy {
   // Confirm-and-apply step (results review)
   confirmSelected = new Set<string>();
   confirming = false;
+  cancelling = false;
 
   constructor(
     private dialogRef: MatDialogRef<BatchCaptionReviewDialogComponent>,
@@ -59,6 +60,24 @@ export class BatchCaptionReviewDialogComponent implements OnDestroy {
     private videoService: VideoService,
     private snackBar: MatSnackBar
   ) {}
+
+  ngOnInit(): void {
+    // If a batch review is already running for this project, re-attach to it
+    // instead of showing the setup step.
+    this.videoService.getActiveBatchReview(this.data.projectId).subscribe({
+      next: (res) => {
+        if (res.task) this.attachToTask(res.task.task_id);
+      },
+      error: () => { /* non-fatal: stay on the setup step */ }
+    });
+  }
+
+  private attachToTask(taskId: string): void {
+    this.step = 'running';
+    this.pollingSub?.unsubscribe();
+    this.pollingSub = interval(2000).subscribe(() => this.pollStatus(taskId));
+    this.pollStatus(taskId);
+  }
 
   generatePreview(): void {
     this.loadingPreview = true;
@@ -159,23 +178,29 @@ export class BatchCaptionReviewDialogComponent implements OnDestroy {
     ).subscribe({
       next: (res) => {
         this.starting = false;
-        this.step = 'running';
-        this.pollingSub = interval(2000).subscribe(() => this.pollStatus(res.task_id));
-        this.pollStatus(res.task_id);
+        this.attachToTask(res.task_id);
       },
       error: (err) => {
         this.starting = false;
-        this.snackBar.open('Failed to start review: ' + err.message, 'Close', { duration: 4000 });
+        if (err.status === 409 && err.error?.task_id) {
+          this.snackBar.open('A review is already running — showing its progress', 'Close', { duration: 3000 });
+          this.attachToTask(err.error.task_id);
+        } else {
+          this.snackBar.open('Failed to start review: ' + err.message, 'Close', { duration: 4000 });
+        }
       }
     });
   }
 
+  private static readonly TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'interrupted'];
+
   private pollStatus(taskId: string): void {
     this.videoService.getBatchReviewStatus(taskId).subscribe({
       next: (task) => {
-        const wasRunning = this.task?.status !== 'completed' && this.task?.status !== 'failed';
+        const terminal = BatchCaptionReviewDialogComponent.TERMINAL_STATUSES;
+        const wasRunning = !terminal.includes(this.task?.status ?? '');
         this.task = task;
-        if (task.status === 'completed' || task.status === 'failed') {
+        if (terminal.includes(task.status)) {
           this.pollingSub?.unsubscribe();
           this.step = 'done';
           if (wasRunning) {
@@ -188,6 +213,21 @@ export class BatchCaptionReviewDialogComponent implements OnDestroy {
       error: (err) => {
         this.pollingSub?.unsubscribe();
         this.snackBar.open('Lost connection to review job: ' + err.message, 'Close', { duration: 4000 });
+      }
+    });
+  }
+
+  cancelReview(): void {
+    if (!this.task || this.cancelling) return;
+    this.cancelling = true;
+    this.videoService.cancelBatchReview(this.task.task_id).subscribe({
+      next: () => {
+        // The 2s poll picks up the 'cancelled' status and moves to 'done'.
+        this.cancelling = false;
+      },
+      error: (err) => {
+        this.cancelling = false;
+        this.snackBar.open('Failed to cancel: ' + err.message, 'Close', { duration: 4000 });
       }
     });
   }

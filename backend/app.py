@@ -3,6 +3,7 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from config import Config
 import os
+from datetime import datetime, timezone
 from utils.vector_store import init_vector_store
 
 
@@ -53,6 +54,18 @@ def create_app():
     client = MongoClient(Config.MONGO_URI)
     app.db = client[Config.DB_NAME]
     init_vector_store(app.db)
+
+    # Any batch review task still pending/running at boot has no worker
+    # thread (workers are daemon threads of the previous process) — mark it
+    # interrupted so it stops blocking new runs via the 409 gate.
+    app.db.caption_review_tasks.update_many(
+        {'status': {'$in': ['pending', 'running']}},
+        {'$set': {
+            'status': 'interrupted',
+            'error': 'Server restarted',
+            'updated_at': datetime.now(timezone.utc),
+        }}
+    )
 
     # Create upload directories
     for folder in ['videos', 'thumbnails', 'frames', 'masks', 'images']:

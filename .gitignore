@@ -64,3 +64,9 @@ Thumbs.db
 *.log
 npm-debug.log*
 .venv/
+
+# DAM model weights (not for git)
+describe-anything/checkpoints/
+
+# Claude Code local settings
+**/.claude/settings.local.json

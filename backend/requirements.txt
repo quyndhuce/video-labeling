@@ -17,7 +17,7 @@ pymongo==4.6.1
 Pillow==10.2.0
 Werkzeug==3.0.1
 faiss-cpu==1.8.0
-google-generativeai>=0.3.0
+google-genai>=2.0.0
 
 packaging>=24.0
 # DINOv2 (loaded via torch.hub)

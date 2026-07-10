@@ -236,18 +236,26 @@ def _serialize_task(task):
     }
 
 
-def _call_gemini_with_retry(model, prompt, caption_id):
+def _task_cancelled(db, task_id):
+    """True if the task doc has been flipped to 'cancelled' by the cancel
+    endpoint. The worker polls this between items and between retry sleeps."""
+    doc = db.caption_review_tasks.find_one({'_id': task_id}, {'status': 1})
+    return bool(doc) and doc.get('status') == 'cancelled'
+
+
+def _call_gemini_with_retry(client, model_name, prompt, caption_id, db, task_id):
     """Call Gemini with a minimum request delay + exponential backoff on rate
     limits, mirroring tools/caption_combiner's call_gpt_with_retry.
 
-    Returns (text, is_auth_error). text is None if every retry failed or the
-    error was non-retryable; is_auth_error is True for an invalid/rejected key.
+    Returns (text, is_auth_error). text is None if every retry failed, the
+    error was non-retryable, or the task was cancelled mid-retry;
+    is_auth_error is True for an invalid/rejected key.
     """
     time.sleep(MIN_REQUEST_DELAY_S)
 
     for attempt in range(MAX_RETRIES):
         try:
-            response = model.generate_content(prompt)
+            response = client.models.generate_content(model=model_name, contents=prompt)
             return (getattr(response, 'text', '') or '').strip(), False
         except Exception as e:
             message = str(e)
@@ -258,6 +266,12 @@ def _call_gemini_with_retry(model, prompt, caption_id):
             )
             if is_auth_error:
                 return None, True
+
+            # Don't sit in a long backoff sleep for a task the user has
+            # already cancelled — bail out before sleeping.
+            if _task_cancelled(db, task_id):
+                logger.info(f"[BatchReview] task {task_id} cancelled during retries for {caption_id}")
+                return None, False
 
             is_rate_limited = '429' in message or 'RATE_LIMIT' in upper or 'RESOURCE_EXHAUSTED' in upper
             if is_rate_limited:
@@ -275,20 +289,26 @@ def _call_gemini_with_retry(model, prompt, caption_id):
 
 
 def _run_batch_review(app, task_id, item_ids, gemini_api_key, gemini_model):
-    import google.generativeai as genai
+    from google import genai
 
     with app.app_context():
         db = current_app.db
+        # Only promote pending -> running: if the user cancelled before this
+        # thread got scheduled, the doc is already 'cancelled' and must stay
+        # that way (the loop's first _task_cancelled check then exits).
         db.caption_review_tasks.update_one(
-            {'_id': task_id},
+            {'_id': task_id, 'status': 'pending'},
             {'$set': {'status': 'running', 'updated_at': datetime.now(timezone.utc)}}
         )
 
         try:
-            genai.configure(api_key=gemini_api_key)
-            model = genai.GenerativeModel(gemini_model)
+            client = genai.Client(api_key=gemini_api_key)
 
             for index, caption_id in enumerate(item_ids):
+                if _task_cancelled(db, task_id):
+                    logger.info(f"[BatchReview] task {task_id} cancelled after {index} of {len(item_ids)} items")
+                    return
+
                 try:
                     caption = db.captions.find_one({'_id': ObjectId(caption_id)})
                 except Exception:
@@ -336,7 +356,7 @@ def _run_batch_review(app, task_id, item_ids, gemini_api_key, gemini_model):
                     })
 
                     prompt = _build_review_prompt(ground_truth_name, segment_name, current_caption)
-                    text, is_auth_error = _call_gemini_with_retry(model, prompt, caption_id)
+                    text, is_auth_error = _call_gemini_with_retry(client, gemini_model, prompt, caption_id, db, task_id)
 
                     if is_auth_error and index == 0:
                         db.caption_review_tasks.update_one(
@@ -380,7 +400,7 @@ def _run_batch_review(app, task_id, item_ids, gemini_api_key, gemini_model):
                 )
 
             db.caption_review_tasks.update_one(
-                {'_id': task_id, 'status': {'$ne': 'failed'}},
+                {'_id': task_id, 'status': {'$nin': ['failed', 'cancelled']}},
                 {'$set': {'status': 'completed', 'updated_at': datetime.now(timezone.utc)}}
             )
         except Exception as e:
@@ -458,6 +478,48 @@ def batch_review_status(task_id):
     if not task:
         return jsonify({'error': 'Task not found'}), 404
     return jsonify(_serialize_task(task)), 200
+
+
+@batch_review_bp.route('/batch-review/cancel', methods=['POST'])
+@token_required
+def batch_review_cancel():
+    """Flip a pending/running task to 'cancelled'.
+
+    Works whether or not the worker thread is still alive: a live worker
+    exits at its next check; a dead/stuck task only needs the doc flipped so
+    the 409 gate in batch_review_apply stops matching it. Cancelling an
+    already-finished task is an idempotent no-op.
+    """
+    data = request.get_json() or {}
+    task_id = data.get('task_id')
+    if not task_id:
+        return jsonify({'error': 'task_id is required'}), 400
+
+    db = current_app.db
+    db.caption_review_tasks.update_one(
+        {'_id': task_id, 'status': {'$in': ['pending', 'running']}},
+        {'$set': {'status': 'cancelled', 'updated_at': datetime.now(timezone.utc)}}
+    )
+
+    task = db.caption_review_tasks.find_one({'_id': task_id})
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    return jsonify(_serialize_task(task)), 200
+
+
+@batch_review_bp.route('/batch-review/active', methods=['GET'])
+@token_required
+def batch_review_active():
+    """Return the project's currently pending/running task, or null."""
+    project_id = request.args.get('project_id')
+    if not project_id:
+        return jsonify({'error': 'project_id is required'}), 400
+
+    task = current_app.db.caption_review_tasks.find_one({
+        'project_id': project_id,
+        'status': {'$in': ['pending', 'running']},
+    })
+    return jsonify({'task': _serialize_task(task) if task else None}), 200
 
 
 @batch_review_bp.route('/batch-review/confirm', methods=['POST'])

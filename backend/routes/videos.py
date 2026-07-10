@@ -292,7 +292,7 @@ def _count_kb_anchor_mentions(text: str, aggregated_knowledge):
     return count
 
 
-def _translate_to_vietnamese(model, english_text: str) -> str:
+def _translate_to_vietnamese(client, model_name, english_text: str) -> str:
     if not english_text:
         return ''
 
@@ -314,9 +314,10 @@ Vietnamese:"""
         print("="*60)
         print(vi_prompt)
         print("="*60 + "\n")
-        vi_resp = model.generate_content(
-            vi_prompt,
-            generation_config={
+        vi_resp = client.models.generate_content(
+            model=model_name,
+            contents=vi_prompt,
+            config={
                 'max_output_tokens': GEMINI_MAX_OUTPUT_TOKENS,
             }
         )
@@ -334,7 +335,7 @@ def _run_video_ai_pipeline(
     video_id: str = None,
     video_name: str = '',
 ):
-    import google.generativeai as genai
+    from google import genai
 
     frames = _extract_video_frames(video_path, num_frames)
     if not frames:
@@ -499,8 +500,7 @@ def _run_video_ai_pipeline(
             print(f"[DEBUG] gemini_key found={bool(gemini_key)}, length={len(gemini_key) if gemini_key else 0}")
 
             if gemini_key:
-                genai.configure(api_key=gemini_key)
-                model = genai.GenerativeModel(gemini_model)
+                client = genai.Client(api_key=gemini_key)
 
                 gemini_prompt = f"""You are given two inputs for one video:
 1) visual caption
@@ -531,9 +531,10 @@ Return ONLY valid JSON:
                 print("="*60)
                 print(gemini_prompt)
                 print("="*60 + "\n")
-                gemini_response = model.generate_content(
-                    gemini_prompt,
-                    generation_config={
+                gemini_response = client.models.generate_content(
+                    model=gemini_model,
+                    contents=gemini_prompt,
+                    config={
                         'max_output_tokens': GEMINI_MAX_OUTPUT_TOKENS,
                     }
                 )
@@ -551,7 +552,7 @@ Return ONLY valid JSON:
                     result['english_description'] = en or fallback_en
                     # If Gemini did not return Vietnamese, translate the English paragraph
                     if not vi:
-                        vi = _translate_to_vietnamese(model, result['english_description'])
+                        vi = _translate_to_vietnamese(client, gemini_model, result['english_description'])
                     result['vietnamese_description'] = vi or fallback_vi or 'Chua co noi dung tieng Viet.'
                     result['final_description'] = (
                         f"English:\n{result['english_description']}\n\n"
@@ -561,7 +562,7 @@ Return ONLY valid JSON:
                     # Fallback if model does not return strict JSON.
                     fallback_text = (gemini_response.text or '').strip()
                     result['english_description'] = fallback_text or fallback_en
-                    vi = _translate_to_vietnamese(model, result['english_description'])
+                    vi = _translate_to_vietnamese(client, gemini_model, result['english_description'])
                     result['vietnamese_description'] = vi or fallback_vi or 'Chua co noi dung tieng Viet.'
                     result['final_description'] = (
                         f"English:\n{result['english_description']}\n\n"

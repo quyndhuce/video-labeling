@@ -116,6 +116,18 @@
     <p *ngIf="task">{{ task.processed }} / {{ task.total }} processed &mdash; {{ task.succeeded }} succeeded, {{ task.failed }} failed</p>
     <mat-progress-bar *ngIf="step === 'running'" mode="determinate" [value]="task && task.total ? (task.processed / task.total * 100) : 0"></mat-progress-bar>
     <p *ngIf="task?.status === 'failed' && task?.error" class="error-banner">{{ task?.error }}</p>
+    <p *ngIf="task?.status === 'cancelled'" class="error-banner">
+      Review cancelled &mdash; {{ task?.processed }} of {{ task?.total }} item(s) were processed before stopping.
+    </p>
+    <p *ngIf="task?.status === 'interrupted'" class="error-banner">
+      Review was interrupted by a server restart. Partial results are shown below.
+    </p>
+
+    <div class="cancel-row" *ngIf="step === 'running' && task && (task.status === 'pending' || task.status === 'running')">
+      <button mat-stroked-button color="warn" (click)="cancelReview()" [disabled]="cancelling">
+        {{ cancelling ? 'Cancelling...' : 'Cancel Review' }}
+      </button>
+    </div>
 
     <p *ngIf="step === 'done' && task && task.succeeded > 0" class="confirm-hint">
       Review the proposed changes below and choose which ones to apply. Nothing is written to the actual captions until you confirm.
