@@ -139,6 +139,7 @@ export interface ObjectRegion {
   color: string;
   category_id?: string;
   category_name?: string;
+  knowledge_base_ids?: string[];
   caption?: Caption;
   created_at: string;
 }

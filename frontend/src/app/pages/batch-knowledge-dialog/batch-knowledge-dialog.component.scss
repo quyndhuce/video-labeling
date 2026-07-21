@@ -1,0 +1,100 @@
+.batch-kb-dialog {
+  padding: 8px 12px;
+  max-width: 650px;
+  width: 100%;
+  color: #e0e0e0;
+
+  .dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+
+    .dialog-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      .header-icon {
+        color: #7952b3;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+    }
+  }
+
+  .dialog-content {
+    min-height: 320px;
+    padding: 0;
+
+    .tab-body {
+      padding: 16px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+
+      .tab-desc {
+        font-size: 0.9rem;
+        color: #aaa;
+        margin: 0 0 8px 0;
+      }
+
+      .section-block {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+
+        h3 {
+          margin: 0;
+          font-size: 1.05rem;
+          font-weight: 600;
+          color: #e0e0e0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          .sec-icon {
+            color: #b197fc;
+          }
+        }
+      }
+
+      .divider {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.1);
+        margin: 8px 0;
+      }
+
+      .full-width {
+        width: 100%;
+      }
+
+      .action-bar {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 12px;
+      }
+
+      .action-buttons-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 4px;
+      }
+    }
+  }
+
+  .dialog-actions {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    gap: 8px;
+  }
+}

@@ -168,6 +168,8 @@ def update_segment(segment_id):
         update_fields['end_time'] = float(data['end_time'])
     if 'order' in data:
         update_fields['order'] = int(data['order'])
+    if 'knowledge_base_ids' in data:
+        update_fields['knowledge_base_ids'] = _parse_object_id_list(data.get('knowledge_base_ids', []))
     update_fields['updated_at'] = datetime.now(timezone.utc)
 
     current_app.db.video_segments.update_one(

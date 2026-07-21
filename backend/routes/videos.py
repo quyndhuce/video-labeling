@@ -1020,6 +1020,7 @@ def get_video(video_id):
         # Legacy single reviewer support
         'reviewer_id': subpart_reviewers[0] if subpart_reviewers else None,
         'reviewer_details': reviewer_details_list[0] if reviewer_details_list else None,
+        'knowledge_base_ids': [str(k) for k in video.get('knowledge_base_ids', [])],
         'segments': segments_data,
         'created_at': video['created_at'].isoformat()
     })
@@ -1070,6 +1071,8 @@ def update_video(video_id):
         update_fields['review_comment'] = data['review_comment']
     if 'annotators' in data:
         update_fields['annotators'] = [ObjectId(a) for a in data['annotators'] if a]
+    if 'knowledge_base_ids' in data:
+        update_fields['knowledge_base_ids'] = [ObjectId(k) for k in data['knowledge_base_ids'] if k]
 
     # If video was approved and content changed, reset to not_submitted
     # (except when explicitly setting review_status)

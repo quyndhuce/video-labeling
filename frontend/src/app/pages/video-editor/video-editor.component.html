@@ -99,6 +99,11 @@
         <mat-icon>chevron_right</mat-icon>
       </button>
     </div>
+
+    <!-- Batch Knowledge & Metadata Assignment Launcher -->
+    <button mat-icon-button class="batch-kb-btn" (click)="openBatchKnowledgeDialog()" matTooltip="Batch Knowledge Base & Metadata Assignment">
+      <mat-icon class="batch-icon">auto_awesome</mat-icon>
+    </button>
     <!-- Review Summary for multi-reviewer -->
     <span class="ed-review-summary" *ngIf="video.reviews?.length">
       {{ getReviewSummary() }}

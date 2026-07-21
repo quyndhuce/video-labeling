@@ -26,10 +26,11 @@ import { KnowledgeBaseService } from '../../core/services/knowledge-base.service
 import { NavigationHistoryService } from '../../core/services/navigation-history.service';
 import { DamService } from '../../core/services/dam.service';
 import { SettingsDialogComponent } from '../settings-dialog/settings-dialog.component';
+import { BatchKnowledgeDialogComponent } from '../batch-knowledge-dialog/batch-knowledge-dialog.component';
 import { KnowledgeBaseSelectorComponent } from '../../core/components/knowledge-base-selector/knowledge-base-selector.component';
 import { VideoItem, VideoSegment, ObjectRegion, Caption, Category } from '../../core/models';
 import { normalizeCuts, keepRanges, CutRange } from '../../core/utils/cut-ranges';
-import { forkJoin } from 'rxjs';
+import { forkJoin, Observable } from 'rxjs';
 
 @Component({
   selector: 'app-video-editor',
@@ -39,7 +40,7 @@ import { forkJoin } from 'rxjs';
     MatButtonModule, MatIconModule, MatSliderModule, MatFormFieldModule,
     MatInputModule, MatSelectModule, MatSnackBarModule, MatProgressSpinnerModule,
     MatTooltipModule, MatMenuModule, MatTabsModule, MatProgressBarModule, MatDialogModule,
-    KnowledgeBaseSelectorComponent
+    KnowledgeBaseSelectorComponent, BatchKnowledgeDialogComponent
   ],
   templateUrl: './video-editor.component.html',
   styleUrls: ['./video-editor.component.scss']
@@ -2599,6 +2600,106 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
         knowledge_relevance: 0
       };
     }
+  }
+
+  openBatchKnowledgeDialog(): void {
+    if (!this.video) return;
+
+    const dialogRef = this.dialog.open(BatchKnowledgeDialogComponent, {
+      width: '640px',
+      data: {
+        video: this.video,
+        segments: this.segments || [],
+        regions: this.regions || [],
+        regionCaptionCache: this.regionCaptionCache || {}
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result && result.updated) {
+        const saveTasks: Observable<any>[] = [];
+
+        // 1. Global Video KB
+        if (result.globalKBIds) {
+          (this.video as any).knowledge_base_ids = result.globalKBIds;
+          saveTasks.push(this.videoService.updateVideo(this.video.id, { knowledge_base_ids: result.globalKBIds } as any));
+        }
+
+        // 2. Batch Save ALL Segments (Names & KB IDs)
+        if (Array.isArray(result.segments)) {
+          result.segments.forEach(seg => {
+            if (seg.id) {
+              const segKbIds = seg.caption?.knowledge_base_ids || [];
+              saveTasks.push(this.videoService.updateSegment(seg.id, { name: seg.name, knowledge_base_ids: segKbIds } as any));
+
+              if (seg.caption) {
+                const segCaptionData = {
+                  segment_id: seg.id,
+                  video_id: this.video!.id,
+                  contextual_caption: seg.caption.contextual_caption || '',
+                  knowledge_caption: seg.caption.knowledge_caption || '',
+                  combined_caption: seg.caption.combined_caption || '',
+                  contextual_caption_vi: seg.caption.contextual_caption_vi || '',
+                  knowledge_caption_vi: seg.caption.knowledge_caption_vi || '',
+                  combined_caption_vi: seg.caption.combined_caption_vi || '',
+                  knowledge_base_ids: segKbIds
+                };
+                saveTasks.push(this.videoService.saveCaption(segCaptionData));
+              }
+            }
+          });
+        }
+
+        // 3. Batch Save ALL Object Tracks / Regions (Labels & KB IDs)
+        if (Array.isArray(result.regions)) {
+          result.regions.forEach(reg => {
+            if (reg.id) {
+              const regKbIds = reg.caption?.knowledge_base_ids || [];
+              saveTasks.push(this.videoService.updateRegion(reg.id, {
+                label: reg.label,
+                knowledge_base_ids: regKbIds
+              }));
+              if (reg.caption) {
+                const regCaptionData = {
+                  segment_id: reg.segment_id,
+                  video_id: this.video!.id,
+                  region_id: reg.id,
+                  visual_caption: reg.caption.visual_caption || '',
+                  visual_caption_vi: reg.caption.visual_caption_vi || '',
+                  knowledge_caption: reg.caption.knowledge_caption || '',
+                  knowledge_caption_vi: reg.caption.knowledge_caption_vi || '',
+                  combined_caption: reg.caption.combined_caption || '',
+                  combined_caption_vi: reg.caption.combined_caption_vi || '',
+                  knowledge_base_ids: regKbIds
+                };
+                saveTasks.push(this.videoService.saveCaption(regCaptionData));
+              }
+            }
+          });
+        }
+
+        // Execute all save tasks to database
+        if (saveTasks.length > 0) {
+          this.snackBar.open('Saving all batch updates to database...', '', { duration: 4000 });
+          forkJoin(saveTasks).subscribe({
+            next: () => {
+              if (this.selectedSegment) {
+                this.loadSegmentCaption(this.selectedSegment);
+              }
+              if (this.selectedRegion) {
+                this.captionKBIds = this.normalizeKbIds(this.selectedRegion.caption?.knowledge_base_ids || []);
+                this.currentRegionLabel = this.selectedRegion.label;
+              }
+              this.snackBar.open('All batch updates saved to database successfully!', 'OK', { duration: 3000, panelClass: 'snack-success' });
+            },
+            error: (err) => {
+              console.error('Error saving batch updates:', err);
+              this.snackBar.open('Failed to save some batch updates.', 'OK', { duration: 4000, panelClass: 'snack-error' });
+            }
+          });
+        }
+      }
+    });
   }
 
   getStarArray(): number[] {

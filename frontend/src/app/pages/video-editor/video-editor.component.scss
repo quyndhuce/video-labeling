@@ -76,6 +76,19 @@
   }
 }
 
+.batch-kb-btn {
+  margin-left: 6px;
+  color: #b197fc !important;
+
+  &:hover {
+    background: rgba(121, 82, 179, 0.2) !important;
+  }
+
+  .batch-icon {
+    color: #cc5de8;
+  }
+}
+
 .step-tabs {
   display: flex;
   gap: 4px;

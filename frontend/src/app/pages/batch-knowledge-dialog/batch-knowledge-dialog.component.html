@@ -1,0 +1,155 @@
+<div class="batch-kb-dialog">
+  <div class="dialog-header">
+    <div class="dialog-title-row">
+      <mat-icon class="header-icon">auto_awesome</mat-icon>
+      <h2>Batch Knowledge & Metadata Management</h2>
+    </div>
+    <button mat-icon-button (click)="close()"><mat-icon>close</mat-icon></button>
+  </div>
+
+  <mat-dialog-content class="dialog-content">
+    <mat-tab-group animationDuration="150ms">
+
+      <!-- Tab 1: Global Video KB -->
+      <mat-tab label="Global Video KB">
+        <div class="tab-body">
+          <p class="tab-desc">
+            Define default Knowledge Base items for this entire video. You can assign them globally to all segments and object tracks with one click.
+          </p>
+
+          <app-knowledge-base-selector
+            label="Global Video Knowledge"
+            placeholder="Search knowledge base for whole video..."
+            [(ngModel)]="globalKBIds"
+            [multiple]="true"
+            [showQuickAdd]="true"
+            (selectionChange)="onGlobalSelectionChange($event)">
+          </app-knowledge-base-selector>
+
+          <div class="action-bar">
+            <button mat-raised-button color="primary" (click)="applyGlobalToAll()">
+              <mat-icon>done_all</mat-icon> Apply Global KB to ALL Segments & Objects
+            </button>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- Tab 2: Batch Segments (KB & Names) -->
+      <mat-tab label="Batch Segments ({{ data.segments?.length || 0 }})">
+        <div class="tab-body">
+          <div class="section-block">
+            <h3><mat-icon class="sec-icon">collections_bookmark</mat-icon> Knowledge Base Assignment</h3>
+            <p class="tab-desc">
+              Select Knowledge Base items and apply them to all <strong>{{ data.segments?.length || 0 }}</strong> video segments.
+            </p>
+
+            <app-knowledge-base-selector
+              label="Segment Knowledge Base"
+              placeholder="Search KB for segments..."
+              [(ngModel)]="segmentKBIds"
+              [multiple]="true"
+              [showQuickAdd]="true"
+              (selectionChange)="onSegmentSelectionChange($event)">
+            </app-knowledge-base-selector>
+
+            <div class="action-buttons-group">
+              <button mat-raised-button color="primary" (click)="applyToSegments('overwrite')" [disabled]="!segmentKBIds.length">
+                <mat-icon>swap_horiz</mat-icon> Overwrite All Segments
+              </button>
+              <button mat-stroked-button (click)="applyToSegments('append')" [disabled]="!segmentKBIds.length">
+                <mat-icon>add</mat-icon> Append to All Segments
+              </button>
+              <button mat-stroked-button color="warn" (click)="applyToSegments('clear')">
+                <mat-icon>delete_outline</mat-icon> Clear All Segments
+              </button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="section-block">
+            <h3><mat-icon class="sec-icon">edit_note</mat-icon> Batch Rename Segments</h3>
+            <p class="tab-desc">
+              Enter a name (e.g. "Scene" or "Segment") to rename all segments at once.
+            </p>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>New Segment Name</mat-label>
+              <input matInput [(ngModel)]="batchSegmentName" placeholder="e.g. Scene, Segment, Clip" />
+            </mat-form-field>
+
+            <div class="action-buttons-group">
+              <button mat-raised-button color="accent" (click)="renameAllSegments()" [disabled]="!batchSegmentName.trim()">
+                <mat-icon>edit</mat-icon> Set Name for All Segments
+              </button>
+            </div>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- Tab 3: Batch Object Tracks (KB & Labels) -->
+      <mat-tab label="Batch Object Tracks ({{ data.regions?.length || 0 }})">
+        <div class="tab-body">
+          <div class="section-block">
+            <h3><mat-icon class="sec-icon">collections_bookmark</mat-icon> Knowledge Base Assignment</h3>
+            <p class="tab-desc">
+              Select Knowledge Base items and apply them to all <strong>{{ data.regions?.length || 0 }}</strong> object tracks.
+            </p>
+
+            <app-knowledge-base-selector
+              label="Object Track Knowledge Base"
+              placeholder="Search KB for object tracks..."
+              [(ngModel)]="objectKBIds"
+              [multiple]="true"
+              [showQuickAdd]="true"
+              (selectionChange)="onObjectSelectionChange($event)">
+            </app-knowledge-base-selector>
+
+            <div class="action-buttons-group">
+              <button mat-raised-button color="primary" (click)="applyToObjects('overwrite')" [disabled]="!objectKBIds.length">
+                <mat-icon>swap_horiz</mat-icon> Overwrite All Objects
+              </button>
+              <button mat-stroked-button (click)="applyToObjects('append')" [disabled]="!objectKBIds.length">
+                <mat-icon>add</mat-icon> Append to All Objects
+              </button>
+              <button mat-stroked-button color="warn" (click)="applyToObjects('clear')">
+                <mat-icon>delete_outline</mat-icon> Clear All Objects
+              </button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="section-block">
+            <h3><mat-icon class="sec-icon">label</mat-icon> Batch Rename Object Track Labels</h3>
+            <p class="tab-desc">
+              Enter a label (e.g. "Car" or "Person") to update all object tracks at once.
+            </p>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>New Object Track Label</mat-label>
+              <input matInput [(ngModel)]="batchObjectLabel" placeholder="e.g. Person, Car, Vehicle" />
+            </mat-form-field>
+
+            <div class="action-buttons-group">
+              <button mat-raised-button color="accent" (click)="renameAllObjects(false)" [disabled]="!batchObjectLabel.trim()">
+                <mat-icon>label</mat-icon> Set Label for All Objects
+              </button>
+              <button mat-stroked-button (click)="renameAllObjects(true)" [disabled]="!batchObjectLabel.trim()">
+                <mat-icon>format_list_numbered</mat-icon> Set Label + Numbering (e.g. Car 1, Car 2)
+              </button>
+            </div>
+          </div>
+        </div>
+      </mat-tab>
+
+    </mat-tab-group>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end" class="dialog-actions">
+    <button mat-button (click)="close()">Cancel</button>
+    <button mat-raised-button color="accent" (click)="saveAndClose()">
+      <mat-icon>save</mat-icon> Done & Save Changes
+    </button>
+  </mat-dialog-actions>
+</div>
