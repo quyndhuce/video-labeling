@@ -269,21 +269,23 @@ def create_caption():
         })
 
     if existing:
+        update_fields = {}
+        caption_fields = [
+            'visual_caption', 'contextual_caption', 'knowledge_caption', 'combined_caption',
+            'visual_caption_vi', 'contextual_caption_vi', 'knowledge_caption_vi', 'combined_caption_vi'
+        ]
+        for field in caption_fields:
+            if field in data and data[field]:
+                update_fields[field] = data[field]
+        
+        if 'knowledge_base_ids' in data:
+            update_fields['knowledge_base_ids'] = _parse_object_id_list(data['knowledge_base_ids'])
+            
+        update_fields['updated_at'] = datetime.now(timezone.utc)
+
         current_app.db.captions.update_one(
             {'_id': existing['_id']},
-            {'$set': {
-                'visual_caption': data.get('visual_caption', existing.get('visual_caption', '')),
-                'contextual_caption': data.get('contextual_caption', existing.get('contextual_caption', '')),
-                'knowledge_caption': data.get('knowledge_caption', existing.get('knowledge_caption', '')),
-                'combined_caption': data.get('combined_caption', existing.get('combined_caption', '')),
-                'visual_caption_vi': data.get('visual_caption_vi', existing.get('visual_caption_vi', '')),
-                'contextual_caption_vi': data.get('contextual_caption_vi', existing.get('contextual_caption_vi', '')),
-                'knowledge_caption_vi': data.get('knowledge_caption_vi', existing.get('knowledge_caption_vi', '')),
-                'combined_caption_vi': data.get('combined_caption_vi', existing.get('combined_caption_vi', '')),
-                'knowledge_base_ids': _parse_object_id_list(data.get('knowledge_base_ids', existing.get('knowledge_base_ids', []))),
-                'updated_at': datetime.now(timezone.utc)
-            }}
-
+            {'$set': update_fields}
         )
         
         # Reset video approval if was approved

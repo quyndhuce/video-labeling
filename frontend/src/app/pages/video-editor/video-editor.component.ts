@@ -2633,17 +2633,18 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
               saveTasks.push(this.videoService.updateSegment(seg.id, { name: seg.name, knowledge_base_ids: segKbIds } as any));
 
               if (seg.caption) {
-                const segCaptionData = {
+                const segCaptionData: any = {
                   segment_id: seg.id,
                   video_id: this.video!.id,
-                  contextual_caption: seg.caption.contextual_caption || '',
-                  knowledge_caption: seg.caption.knowledge_caption || '',
-                  combined_caption: seg.caption.combined_caption || '',
-                  contextual_caption_vi: seg.caption.contextual_caption_vi || '',
-                  knowledge_caption_vi: seg.caption.knowledge_caption_vi || '',
-                  combined_caption_vi: seg.caption.combined_caption_vi || '',
                   knowledge_base_ids: segKbIds
                 };
+                if (seg.caption.contextual_caption) segCaptionData.contextual_caption = seg.caption.contextual_caption;
+                if (seg.caption.knowledge_caption) segCaptionData.knowledge_caption = seg.caption.knowledge_caption;
+                if (seg.caption.combined_caption) segCaptionData.combined_caption = seg.caption.combined_caption;
+                if (seg.caption.contextual_caption_vi) segCaptionData.contextual_caption_vi = seg.caption.contextual_caption_vi;
+                if (seg.caption.knowledge_caption_vi) segCaptionData.knowledge_caption_vi = seg.caption.knowledge_caption_vi;
+                if (seg.caption.combined_caption_vi) segCaptionData.combined_caption_vi = seg.caption.combined_caption_vi;
+
                 saveTasks.push(this.videoService.saveCaption(segCaptionData));
               }
             }
@@ -2660,18 +2661,19 @@ export class VideoEditorComponent implements OnInit, AfterViewInit, OnDestroy {
                 knowledge_base_ids: regKbIds
               }));
               if (reg.caption) {
-                const regCaptionData = {
+                const regCaptionData: any = {
                   segment_id: reg.segment_id,
                   video_id: this.video!.id,
                   region_id: reg.id,
-                  visual_caption: reg.caption.visual_caption || '',
-                  visual_caption_vi: reg.caption.visual_caption_vi || '',
-                  knowledge_caption: reg.caption.knowledge_caption || '',
-                  knowledge_caption_vi: reg.caption.knowledge_caption_vi || '',
-                  combined_caption: reg.caption.combined_caption || '',
-                  combined_caption_vi: reg.caption.combined_caption_vi || '',
                   knowledge_base_ids: regKbIds
                 };
+                if (reg.caption.visual_caption) regCaptionData.visual_caption = reg.caption.visual_caption;
+                if (reg.caption.knowledge_caption) regCaptionData.knowledge_caption = reg.caption.knowledge_caption;
+                if (reg.caption.combined_caption) regCaptionData.combined_caption = reg.caption.combined_caption;
+                if (reg.caption.visual_caption_vi) regCaptionData.visual_caption_vi = reg.caption.visual_caption_vi;
+                if (reg.caption.knowledge_caption_vi) regCaptionData.knowledge_caption_vi = reg.caption.knowledge_caption_vi;
+                if (reg.caption.combined_caption_vi) regCaptionData.combined_caption_vi = reg.caption.combined_caption_vi;
+
                 saveTasks.push(this.videoService.saveCaption(regCaptionData));
               }
             }
