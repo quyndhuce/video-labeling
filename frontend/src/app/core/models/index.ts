@@ -207,6 +207,7 @@ export interface BatchReviewResult {
   segment_name: string;
   object_label: string;
   video_name: string;
+  video_id?: string | null;
   old: { visual_caption: string; visual_caption_vi: string };
   new: { visual_caption: string; visual_caption_vi: string } | null;
   status: 'ok' | 'error';

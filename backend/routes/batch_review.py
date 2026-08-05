@@ -321,6 +321,7 @@ def _run_batch_review(app, task_id, item_ids, gemini_api_key, gemini_model):
                     'segment_name': '',
                     'object_label': '',
                     'video_name': '',
+                    'video_id': None,
                     'old': {'visual_caption': '', 'visual_caption_vi': ''},
                     'new': None,
                     'status': 'error',
@@ -348,6 +349,7 @@ def _run_batch_review(app, task_id, item_ids, gemini_api_key, gemini_model):
                         'segment_name': segment_name,
                         'object_label': object_label,
                         'video_name': video.get('original_name', '') if video else '',
+                        'video_id': str(video['_id']) if video else None,
                         'old': {
                             'visual_caption': current_caption,
                             'visual_caption_vi': caption.get(field_vi, ''),
