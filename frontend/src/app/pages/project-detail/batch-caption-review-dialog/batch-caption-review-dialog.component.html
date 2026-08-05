@@ -83,7 +83,13 @@
             <span *ngIf="!item.eligible" class="no-caption-badge" matTooltip="No caption yet — nothing for Gemini to review">n/a</span>
           </td>
           <td><span class="level-badge" [class.level-segment]="item.level === 'segment'">{{ item.level === 'segment' ? 'Segment' : 'Object' }}</span></td>
-          <td>{{ item.video_name }}</td>
+          <td>
+            <a *ngIf="item.video_id" [href]="'/editor/' + item.video_id" target="_blank" rel="noopener noreferrer" class="video-link" (click)="$event.stopPropagation()" matTooltip="Open video in new tab">
+              <span>{{ item.video_name }}</span>
+              <mat-icon class="external-icon">open_in_new</mat-icon>
+            </a>
+            <span *ngIf="!item.video_id">{{ item.video_name }}</span>
+          </td>
           <td>{{ item.segment_name }}</td>
           <td>{{ item.level === 'segment' ? '—' : item.object_label }}</td>
           <td>{{ item.current_visual_caption || '(no caption yet)' }}</td>
@@ -138,6 +144,7 @@
         <tr>
           <th *ngIf="step === 'done'"></th>
           <th>Type</th>
+          <th>Video</th>
           <th>Segment</th>
           <th>Object</th>
           <th>Old caption (EN)</th>
@@ -153,6 +160,13 @@
             <span *ngIf="r.applied" class="applied-badge">Applied ✓</span>
           </td>
           <td><span class="level-badge" [class.level-segment]="r.level === 'segment'">{{ r.level === 'segment' ? 'Segment' : 'Object' }}</span></td>
+          <td>
+            <a *ngIf="r.video_id" [href]="'/editor/' + r.video_id" target="_blank" rel="noopener noreferrer" class="video-link" (click)="$event.stopPropagation()" matTooltip="Open video in new tab">
+              <span>{{ r.video_name }}</span>
+              <mat-icon class="external-icon">open_in_new</mat-icon>
+            </a>
+            <span *ngIf="!r.video_id">{{ r.video_name }}</span>
+          </td>
           <td>{{ r.segment_name }}</td>
           <td>{{ r.level === 'segment' ? '—' : r.object_label }}</td>
           <td>{{ r.old.visual_caption }}</td>
