@@ -36,7 +36,7 @@ export const routes: Routes = [
       },
       {
         path: 'knowledge-base',
-        loadComponent: () => import('./knowledge-base/knowledge-base.component').then(m => m.KnowledgeBaseComponent)
+        loadComponent: () => import('./pages/knowledge-base/knowledge-base.component').then(m => m.KnowledgeBaseComponent)
       },
       {
         path: 'video-demo',

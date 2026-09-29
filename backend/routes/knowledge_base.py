@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify, current_app
 from bson import ObjectId
 from datetime import datetime, timezone
+import json
+import os
 import re
 import unicodedata
 import uuid
@@ -84,6 +86,7 @@ def serialize_kb_node(node):
         'related_kb_ids': [str(rid) for rid in node.get('related_kb_ids', [])],
         'related_ids': [str(rid) for rid in node.get('related_kb_ids', [])],
         'tags': node.get('tags', []),
+        'facts': node.get('facts', []),
         'created_at': node['created_at'].isoformat() if node.get('created_at') else None,
         'updated_at': node['updated_at'].isoformat() if node.get('updated_at') else None
     }
@@ -214,6 +217,7 @@ def create_kb_node():
         'confidence_level': data.get('confidence_level', 'optional'),
         'related_kb_ids': related_kb_ids,
         'tags': data.get('tags', []),
+        'facts': data.get('facts', []),
         'created_at': datetime.now(timezone.utc),
         'updated_at': datetime.now(timezone.utc)
     }
@@ -285,6 +289,9 @@ def update_kb_node(node_id):
     
     if 'tags' in data:
         update_data['tags'] = data['tags']
+
+    if 'facts' in data:
+        update_data['facts'] = data['facts']
     
     if 'related_kb_ids' in data or 'related_ids' in data:
         related_ids = _parse_related_ids(data)
@@ -735,3 +742,48 @@ def search_kb_visual():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+# ==================== EXTRACT FACTS ====================
+import subprocess
+import sys
+
+
+@knowledge_base_bp.route('/extract-facts', methods=['POST'])
+@token_required
+def extract_facts():
+    """Extract facts from node description text using FKGFactExtractor in an isolated subprocess."""
+    data = request.get_json() or {}
+    text = data.get('text', '').strip()
+    subject_hint = data.get('subject_hint', '').strip() or None
+
+    if not text:
+        return jsonify({'facts': []})
+
+    try:
+        cli_path = os.path.join(Config.BASE_DIR, 'utils', 'extract_facts_cli.py')
+        payload = json.dumps({'text': text, 'subject_hint': subject_hint})
+
+        proc = subprocess.run(
+            [sys.executable, cli_path],
+            input=payload,
+            text=True,
+            capture_output=True,
+            timeout=60
+        )
+
+        if proc.returncode != 0:
+            print("[extract_facts] Subprocess stderr:", proc.stderr)
+            return jsonify({'error': 'Fact extraction process failed', 'details': proc.stderr}), 500
+
+        result = json.loads(proc.stdout)
+        if 'error' in result:
+            return jsonify({'error': result['error']}), 500
+
+        return jsonify({'facts': result.get('facts', [])})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Fact extraction failed: {str(e)}'}), 500
+
+

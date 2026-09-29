@@ -26,7 +26,7 @@ def register():
     if existing:
         return jsonify({'error': 'Username or email already exists'}), 409
 
-    password_hash = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt())
+    password_hash = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
     user = {
         'username': data['username'],
@@ -66,9 +66,29 @@ def login():
     if not data or not data.get('username') or not data.get('password'):
         return jsonify({'error': 'Missing credentials'}), 400
 
-    user = current_app.db.users.find_one({'username': data['username']})
+    username = str(data['username']).strip()
+    password = str(data['password']).strip()
 
-    if not user or not bcrypt.checkpw(data['password'].encode('utf-8'), user['password_hash']):
+    user = current_app.db.users.find_one({
+        'username': {'$regex': f'^{username}$', '$options': 'i'}
+    })
+
+    if not user:
+        return jsonify({'error': 'Invalid username or password'}), 401
+
+    raw_hash = user.get('password_hash') or user.get('password')
+    if not raw_hash:
+        return jsonify({'error': 'Invalid username or password'}), 401
+
+    if isinstance(raw_hash, str):
+        raw_hash = raw_hash.encode('utf-8')
+
+    try:
+        pw_matches = bcrypt.checkpw(password.encode('utf-8'), raw_hash)
+    except Exception as e:
+        pw_matches = False
+
+    if not pw_matches:
         return jsonify({'error': 'Invalid username or password'}), 401
 
     token = jwt.encode({

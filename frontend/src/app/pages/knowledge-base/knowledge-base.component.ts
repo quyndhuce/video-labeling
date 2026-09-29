@@ -17,7 +17,10 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatTreeModule } from '@angular/material/tree';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { MatToolbarModule } from '@angular/material/toolbar';
 import { KnowledgeBaseService, KBNode } from '../../core/services/knowledge-base.service';
+import { AuthService } from '../../core/services/auth.service';
+import { SettingsDialogComponent } from '../settings-dialog/settings-dialog.component';
 import { KBNodeDialogComponent } from './kb-node-dialog.component';
  
 @Component({
@@ -25,7 +28,7 @@ import { KBNodeDialogComponent } from './kb-node-dialog.component';
   standalone: true,
   imports: [
     CommonModule, FormsModule, RouterModule,
-    MatButtonModule, MatIconModule, MatInputModule, MatSelectModule, MatOptionModule,
+    MatToolbarModule, MatButtonModule, MatIconModule, MatInputModule, MatSelectModule, MatOptionModule,
     MatFormFieldModule, MatSnackBarModule, MatMenuModule, MatChipsModule,
     MatProgressSpinnerModule, MatTooltipModule, MatTabsModule, MatDialogModule,
     MatTreeModule, MatExpansionModule, KBNodeDialogComponent
@@ -34,6 +37,7 @@ import { KBNodeDialogComponent } from './kb-node-dialog.component';
   styleUrls: ['./knowledge-base.component.scss']
 })
 export class KnowledgeBaseComponent implements OnInit {
+  user = this.authService.user;
   allNodes: KBNode[] = [];
   treeNodes: KBNode[] = [];
   loading = false;
@@ -50,10 +54,23 @@ export class KnowledgeBaseComponent implements OnInit {
 
   constructor(
     private kbService: KnowledgeBaseService,
+    private authService: AuthService,
     private snackBar: MatSnackBar,
     private dialog: MatDialog,
     private router: Router
   ) {}
+
+  goBack(): void {
+    this.router.navigate(['/dashboard']);
+  }
+
+  logout(): void {
+    this.authService.logout();
+  }
+
+  openSettings(): void {
+    this.dialog.open(SettingsDialogComponent, { width: '500px' });
+  }
 
   ngOnInit(): void {
     this.loadData();
@@ -166,7 +183,11 @@ export class KnowledgeBaseComponent implements OnInit {
       next: (nodes) => {
         this.allNodes = nodes;
         const dialogRef = this.dialog.open(KBNodeDialogComponent, {
-          width: '600px',
+          width: '100vw',
+          maxWidth: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          panelClass: 'full-screen-kb-dialog',
           data: {
             isEditMode: false,
             allNodes: this.allNodes,
@@ -189,7 +210,11 @@ export class KnowledgeBaseComponent implements OnInit {
       next: (nodes) => {
         this.allNodes = nodes;
         const dialogRef = this.dialog.open(KBNodeDialogComponent, {
-          width: '600px',
+          width: '100vw',
+          maxWidth: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          panelClass: 'full-screen-kb-dialog',
           data: {
             isEditMode: true,
             allNodes: this.allNodes,

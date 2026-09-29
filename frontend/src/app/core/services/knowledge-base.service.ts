@@ -2,6 +2,17 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
+export interface KBNodeFact {
+  head: string;
+  head_type?: string;
+  relation: string;
+  tail: string;
+  tail_type?: string;
+  score?: number;
+  diluted_score?: number;
+  selected?: boolean;
+}
+
 export interface KBNode {
   id: string;
   kb_id: string;
@@ -11,20 +22,21 @@ export interface KBNode {
   parent_id: string | null;
   children_ids: string[];
   description: string;
-  description_vi: string;
-  description_graph: string;
-  description_graph_vi: string;
+  description_vi?: string;
+  description_graph?: string;
+  description_graph_vi?: string;
   visual_cues: string;
-  visual_cues_vi: string;
+  visual_cues_vi?: string;
   related_kb_ids: string[];
   tags: string[];
+  facts?: KBNodeFact[];
   created_at: string;
   updated_at: string;
   children?: KBNode[];
   related_ids?: KBNode[];
-  region: string,
+  region: string;
   // For hierarchical 
-  confidence_level: string,
+  confidence_level: string;
   level?: number;
   path?: string;
 }
@@ -97,6 +109,14 @@ export class KnowledgeBaseService {
   // Get KB types
   getTypes(): Observable<KBType[]> {
     return this.http.get<KBType[]>(`${this.apiUrl}/types`);
+  }
+
+  // Extract facts from text description using model
+  extractFacts(text: string, subjectHint?: string): Observable<{ facts: KBNodeFact[] }> {
+    return this.http.post<{ facts: KBNodeFact[] }>(`${this.apiUrl}/extract-facts`, {
+      text,
+      subject_hint: subjectHint
+    });
   }
 
   // Get full context for KB nodes (with ancestors)

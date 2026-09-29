@@ -1,11 +1,11 @@
 {
   "/api": {
-    "target": "https://annotator-api.stecom.vn",
+    "target": "http://127.0.0.1:6800",
     "secure": false,
     "changeOrigin": true
   },
   "/uploads": {
-    "target": "https://annotator-api.stecom.vn",
+    "target": "http://127.0.0.1:6800",
     "secure": false,
     "changeOrigin": true
   }

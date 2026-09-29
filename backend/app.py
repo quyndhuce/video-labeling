@@ -127,4 +127,4 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=6800)
+    app.run(debug=False, use_reloader=False, host='0.0.0.0', port=6800)

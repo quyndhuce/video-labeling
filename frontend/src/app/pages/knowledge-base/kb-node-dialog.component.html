@@ -1,155 +1,258 @@
-<h2 mat-dialog-title>{{ data.node ? 'Edit' : 'Create' }} Knowledge Node</h2>
+<div class="dialog-header">
+  <h2 mat-dialog-title>
+    <mat-icon>{{ data.node ? 'edit' : 'add_circle' }}</mat-icon>
+    <span>{{ data.node ? 'Edit' : 'Create' }} Knowledge Node</span>
+  </h2>
+  <button mat-icon-button (click)="onCancel()" class="close-btn" matTooltip="Close">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
 
 <mat-dialog-content>
-  <div class="dialog-form">
-    <!-- Name -->
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Name</mat-label>
-      <input matInput [(ngModel)]="node.name" placeholder="Enter node name" required>
-    </mat-form-field>
+  <div class="dialog-body">
+    <!-- Top Metadata Grid -->
+    <div class="metadata-grid">
+      <!-- Name -->
+      <mat-form-field appearance="outline" class="field-item">
+        <mat-label>Name (English)</mat-label>
+        <input matInput [(ngModel)]="node.name" placeholder="Enter node name" required>
+      </mat-form-field>
 
-    <!-- Name VI -->
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Name (Vietnamese)</mat-label>
-      <input matInput [(ngModel)]="node.name_vi" placeholder="Nhập tên tiếng Việt">
-    </mat-form-field>
+      <!-- Name VI -->
+      <mat-form-field appearance="outline" class="field-item">
+        <mat-label>Name (Vietnamese)</mat-label>
+        <input matInput [(ngModel)]="node.name_vi" placeholder="Nhập tên tiếng Việt">
+      </mat-form-field>
 
-    <!-- Type -->
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Type</mat-label>
-      <mat-select [(ngModel)]="node.type" required>
-        <mat-option *ngFor="let type of types" [value]="type">
-          {{ type | titlecase }}
-        </mat-option>
-      </mat-select>
-    </mat-form-field>
+      <!-- Type -->
+      <mat-form-field appearance="outline" class="field-item">
+        <mat-label>Type</mat-label>
+        <mat-select [(ngModel)]="node.type" required>
+          <mat-option *ngFor="let type of types" [value]="type">
+            {{ type | titlecase }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
 
-    <!-- Parent -->
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Parent Node</mat-label>
-      <mat-select [(ngModel)]="node.parent_id">
-        <mat-option [value]="null">None (Root Node)</mat-option>
-        <mat-option *ngFor="let n of availableNodes" [value]="n.id">
-          {{ getNodeDisplayName(n) }}
-        </mat-option>
-      </mat-select>
-    </mat-form-field>
+      <!-- Parent -->
+      <mat-form-field appearance="outline" class="field-item">
+        <mat-label>Parent Node</mat-label>
+        <mat-select [(ngModel)]="node.parent_id">
+          <mat-option [value]="null">None (Root Node)</mat-option>
+          <mat-option *ngFor="let n of availableNodes" [value]="n.id">
+            {{ getNodeDisplayName(n) }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
 
-    <!-- Description EN -->
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Description (English)</mat-label>
-      <textarea matInput [(ngModel)]="node.description" 
-        placeholder="Enter description in English" 
-        rows="10"
-        class="large-textarea"></textarea>
-    </mat-form-field>
+      <!-- Region -->
+      <mat-form-field appearance="outline" class="field-item">
+        <mat-label>Region</mat-label>
+        <mat-select [(ngModel)]="node.region">
+          <mat-option [value]="''">Not specified</mat-option>
+          <mat-option *ngFor="let region of regions" [value]="region">
+            {{ region }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
 
-    <!-- Description VI -->
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Description (Vietnamese)</mat-label>
-      <textarea matInput [(ngModel)]="node.description_vi" 
-        placeholder="Nhập mô tả tiếng Việt" 
-        rows="10"
-        class="large-textarea"></textarea>
-    </mat-form-field>
+      <!-- Confidence Level -->
+      <mat-form-field appearance="outline" class="field-item">
+        <mat-label>Confidence Level</mat-label>
+        <mat-select [(ngModel)]="node.confidence_level">
+          <mat-option *ngFor="let level of confidenceLevels" [value]="level">
+            {{ level | titlecase }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
 
-    <!-- Description Graph EN -->
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Description Graph (English) — S-P-O for Knowledge Graph</mat-label>
-      <textarea matInput [(ngModel)]="node.description_graph" 
-        placeholder="Subject [predicate] object. Subject [predicate] object..." 
-        rows="6"
-        class="large-textarea"></textarea>
-    </mat-form-field>
-
-    <!-- Description Graph VI -->
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Description Graph (Vietnamese) — S-P-O cho Knowledge Graph</mat-label>
-      <textarea matInput [(ngModel)]="node.description_graph_vi" 
-        placeholder="Chủ thể [vị ngữ] tân ngữ. Chủ thể [vị ngữ] tân ngữ..." 
-        rows="6"
-        class="large-textarea"></textarea>
-    </mat-form-field>
-
-    <!-- Visual Cues EN -->
-
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Visual Cues (English)</mat-label>
-      <textarea matInput [(ngModel)]="node.visual_cues" 
-        placeholder="Enter visual characteristics for identification" 
-        rows="10"
-        class="large-textarea"></textarea>
-    </mat-form-field>
-
-    <!-- Visual Cues VI -->
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Visual Cues (Vietnamese)</mat-label>
-      <textarea matInput [(ngModel)]="node.visual_cues_vi" 
-        placeholder="Nhập đặc điểm thị giác để nhận dạng" 
-        rows="10"
-        class="large-textarea"></textarea>
-    </mat-form-field>
-
-    <!-- Region -->
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Region</mat-label>
-      <mat-select [(ngModel)]="node.region">
-        <mat-option [value]="''">Not specified</mat-option>
-        <mat-option *ngFor="let region of regions" [value]="region">
-          {{ region | titlecase }}
-        </mat-option>
-      </mat-select>
-    </mat-form-field>
-
-    <!-- Confidence Level -->
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Confidence Level</mat-label>
-      <mat-select [(ngModel)]="node.confidence_level">
-        <mat-option *ngFor="let level of confidenceLevels" [value]="level">
-          {{ level | titlecase }}
-        </mat-option>
-      </mat-select>
-    </mat-form-field>
-
-    <!-- Tags -->
-    <div class="tags-section">
-      <label>Tags</label>
-      <div class="tags-input">
-        <mat-form-field appearance="outline" class="tag-input">
-          <mat-label>Add tag</mat-label>
-          <input matInput [(ngModel)]="newTag" (keyup.enter)="addTag()" placeholder="Enter tag">
-        </mat-form-field>
-        <button mat-icon-button color="primary" (click)="addTag()" [disabled]="!newTag.trim()">
-          <mat-icon>add_circle</mat-icon>
-        </button>
+    <!-- Tags & Related Nodes Row -->
+    <div class="secondary-metadata-grid">
+      <!-- Tags -->
+      <div class="tags-section">
+        <label class="section-label">Tags</label>
+        <div class="tags-input-row">
+          <mat-form-field appearance="outline" class="tag-input">
+            <mat-label>Add tag</mat-label>
+            <input matInput [(ngModel)]="newTag" (keyup.enter)="addTag()" placeholder="Enter tag">
+          </mat-form-field>
+          <button mat-icon-button color="primary" (click)="addTag()" [disabled]="!newTag.trim()" class="add-tag-btn">
+            <mat-icon>add_circle</mat-icon>
+          </button>
+        </div>
+        <div class="tags-list" *ngIf="node.tags?.length">
+          <mat-chip-set>
+            <mat-chip *ngFor="let tag of node.tags" (removed)="removeTag(tag)">
+              {{ tag }}
+              <button matChipRemove>
+                <mat-icon>cancel</mat-icon>
+              </button>
+            </mat-chip>
+          </mat-chip-set>
+        </div>
       </div>
-      <div class="tags-list" *ngIf="node.tags?.length">
-        <mat-chip-set>
-          <mat-chip *ngFor="let tag of node.tags" (removed)="removeTag(tag)">
-            {{ tag }}
-            <button matChipRemove>
-              <mat-icon>cancel</mat-icon>
-            </button>
-          </mat-chip>
-        </mat-chip-set>
+
+      <!-- Related Nodes -->
+      <div class="related-section">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Related Nodes</mat-label>
+          <mat-select [(ngModel)]="node.related_ids" multiple>
+            <mat-option *ngFor="let n of availableNodes" [value]="n.id">
+              {{ getNodeDisplayName(n) }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
       </div>
     </div>
 
-    <!-- Related Nodes -->
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Related Nodes</mat-label>
-      <mat-select [(ngModel)]="node.related_ids" multiple>
-        <mat-option *ngFor="let n of availableNodes" [value]="n.id">
-          {{ getNodeDisplayName(n) }}
-        </mat-option>
-      </mat-select>
-    </mat-form-field>
+    <!-- Main Content Split 50% / 50% -->
+    <div class="split-container">
+      <!-- Left Column (50% Width): Description & Visual Cues -->
+      <div class="left-col">
+        <!-- Description Field with Extract Button -->
+        <div class="field-container">
+          <div class="field-header">
+            <label class="field-title">
+              <mat-icon>description</mat-icon> Description (English)
+            </label>
+            <button mat-flat-button class="extract-btn" 
+              (click)="onExtractFacts()" 
+              [disabled]="extractingFacts || !node.description?.trim()"
+              matTooltip="Trích xuất tự động danh sách facts từ mô tả bằng FKGFactExtractor">
+              <mat-spinner diameter="16" *ngIf="extractingFacts"></mat-spinner>
+              <mat-icon *ngIf="!extractingFacts">auto_awesome</mat-icon>
+              <span>{{ extractingFacts ? 'Đang trích xuất...' : 'Trích xuất Facts' }}</span>
+            </button>
+          </div>
+          <textarea matInput [(ngModel)]="node.description" 
+            placeholder="Enter detailed description in English..." 
+            class="content-textarea description-textarea"></textarea>
+        </div>
+
+        <!-- Visual Cues Field -->
+        <div class="field-container">
+          <div class="field-header">
+            <label class="field-title">
+              <mat-icon>visibility</mat-icon> Visual Cues (English)
+            </label>
+          </div>
+          <textarea matInput [(ngModel)]="node.visual_cues" 
+            placeholder="Enter visual characteristics for identification..." 
+            class="content-textarea visual-cues-textarea"></textarea>
+        </div>
+      </div>
+
+      <!-- Right Column (50% Width): Facts Selection Panel -->
+      <div class="right-col">
+        <div class="facts-panel">
+          <div class="facts-panel-header">
+            <div class="panel-title-area">
+              <h3>
+                <mat-icon class="panel-icon">hub</mat-icon>
+                <span>Fact Knowledge Graph</span>
+              </h3>
+              <span class="facts-counter-badge">
+                {{ getSelectedFactsCount() }} / {{ availableFacts.length }} facts đã chọn
+              </span>
+            </div>
+
+            <div class="facts-header-actions">
+              <button mat-button class="action-sm-btn" (click)="selectAllFacts(true)" [disabled]="!availableFacts.length">
+                <mat-icon>done_all</mat-icon> Chọn tất cả
+              </button>
+              <button mat-button class="action-sm-btn" (click)="selectAllFacts(false)" [disabled]="!availableFacts.length">
+                <mat-icon>remove_done</mat-icon> Bỏ chọn tất cả
+              </button>
+              <button mat-button class="action-sm-btn highlight-btn" (click)="showAddFactForm = !showAddFactForm">
+                <mat-icon>{{ showAddFactForm ? 'expand_less' : 'add' }}</mat-icon> Thêm fact thủ công
+              </button>
+            </div>
+          </div>
+
+          <!-- Add Manual Fact Form -->
+          <div class="manual-fact-form" *ngIf="showAddFactForm">
+            <h4>Thêm Fact Mới</h4>
+            <div class="manual-fact-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>Subject (Head)</mat-label>
+                <input matInput [(ngModel)]="newFact.head" placeholder="Subject">
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Relation (Predicate)</mat-label>
+                <input matInput [(ngModel)]="newFact.relation" placeholder="e.g. located_in, built_in">
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Object (Tail)</mat-label>
+                <input matInput [(ngModel)]="newFact.tail" placeholder="Object">
+              </mat-form-field>
+
+              <button mat-raised-button color="primary" class="save-fact-btn" (click)="addManualFact()">
+                Thêm Fact
+              </button>
+            </div>
+          </div>
+
+          <!-- Fact Search Filter -->
+          <div class="fact-search-bar" *ngIf="availableFacts.length > 0">
+            <mat-form-field appearance="outline" class="search-fact-input">
+              <mat-label>Tìm kiếm facts...</mat-label>
+              <input matInput [(ngModel)]="factSearchQuery" placeholder="Filter by head, relation, tail">
+              <mat-icon matSuffix>search</mat-icon>
+            </mat-form-field>
+          </div>
+
+          <!-- Facts List -->
+          <div class="facts-list-container">
+            <div class="empty-facts-state" *ngIf="availableFacts.length === 0">
+              <mat-icon>psychology</mat-icon>
+              <p class="empty-title">Chưa có fact nào được trích xuất</p>
+              <p class="empty-desc">Nhập mô tả ở phần Description bên trái, sau đó bấm nút <strong>"Trích xuất Facts"</strong> để tự động sinh danh sách fact.</p>
+            </div>
+
+            <div class="fact-card" *ngFor="let fact of getFilteredFacts(); let i = index" [class.selected]="fact.selected !== false" [class.low-confidence]="(fact.score || 0) < 0.10">
+              <mat-checkbox [checked]="fact.selected !== false" (change)="toggleFact(fact)" class="fact-checkbox" color="primary">
+              </mat-checkbox>
+
+              <div class="fact-spo-box" (click)="toggleFact(fact)">
+                <span class="spo-node head-node">
+                  <span class="node-text">{{ fact.head }}</span>
+                  <span class="node-type" *ngIf="fact.head_type">{{ fact.head_type }}</span>
+                </span>
+
+                <span class="spo-arrow">
+                  <span class="relation-label">{{ fact.relation }}</span>
+                  <mat-icon class="arrow-icon">east</mat-icon>
+                </span>
+
+                <span class="spo-node tail-node">
+                  <span class="node-text">{{ fact.tail }}</span>
+                  <span class="node-type" *ngIf="fact.tail_type">{{ fact.tail_type }}</span>
+                </span>
+              </div>
+
+              <div class="fact-meta">
+                <span class="score-pill" *ngIf="fact.score !== undefined" [class.low-score]="(fact.score || 0) < 0.10" [matTooltip]="'Độ tin cậy: ' + (fact.score | percent:'1.0-1')">
+                  {{ fact.score | percent:'1.0-0' }}
+                </span>
+                <button mat-icon-button class="delete-fact-btn" (click)="removeFact(i)" matTooltip="Xoá fact này">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </mat-dialog-content>
 
-<mat-dialog-actions align="end">
-  <button mat-button (click)="onCancel()">Cancel</button>
-  <button mat-raised-button color="primary" (click)="onSave()" [disabled]="!node.name || !node.type">
-    {{ data.node ? 'Update' : 'Create' }}
+<mat-dialog-actions align="end" class="dialog-footer">
+  <button mat-button (click)="onCancel()" class="cancel-btn">Cancel</button>
+  <button mat-raised-button color="primary" class="save-btn" (click)="onSave()" [disabled]="!node.name || !node.type">
+    <mat-icon>save</mat-icon>
+    <span>{{ data.node ? 'Update Node' : 'Create Node' }}</span>
   </button>
 </mat-dialog-actions>
